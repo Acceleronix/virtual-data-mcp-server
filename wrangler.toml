@@ -1,4 +1,4 @@
-name = "acc-mcp-server"
+name = "virtual-data-mcp-server"
 main = "src/index.ts"
 compatibility_date = "2025-06-20"
 compatibility_flags = ["nodejs_compat"]
@@ -26,8 +26,4 @@ new_sqlite_classes = ["VirtualDataMCP"]
 
 [[migrations]]
 tag = "v2"
-deleted_classes = ["IoTMCP"]
-
-[[migrations]]
-tag = "v3"
-new_sqlite_classes = ["VirtualDataMCP"]
+renamed_classes = [{from = "MyMCP", to = "VirtualDataMCP"}]
