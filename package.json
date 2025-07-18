@@ -12,13 +12,17 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "1.13.1",
+		"@cloudflare/workers-oauth-provider": "^0.0.5",
+		"@modelcontextprotocol/sdk": "^1.13.1",
 		"agents": "^0.0.100",
+		"hono": "^4.8.0",
 		"zod": "^3.25.67"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.0.6",
+		"@types/node": "^24.0.3",
 		"typescript": "^5.8.3",
+		"workers-mcp": "^0.0.13",
 		"wrangler": "^4.22.0"
 	}
 }

@@ -1,73 +1,43 @@
-import { McpAgent } from "agents/mcp";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import { VirtualDataMCP } from "./server";
 
-// Define our MCP agent with tools
-export class MyMCP extends McpAgent {
-	server = new McpServer({
-		name: "Authless Calculator",
-		version: "1.0.0",
-	});
-
-	async init() {
-		// Simple addition tool
-		this.server.tool(
-			"add",
-			{ a: z.number(), b: z.number() },
-			async ({ a, b }) => ({
-				content: [{ type: "text", text: String(a + b) }],
-			})
-		);
-
-		// Calculator tool with multiple operations
-		this.server.tool(
-			"calculate",
-			{
-				operation: z.enum(["add", "subtract", "multiply", "divide"]),
-				a: z.number(),
-				b: z.number(),
-			},
-			async ({ operation, a, b }) => {
-				let result: number;
-				switch (operation) {
-					case "add":
-						result = a + b;
-						break;
-					case "subtract":
-						result = a - b;
-						break;
-					case "multiply":
-						result = a * b;
-						break;
-					case "divide":
-						if (b === 0)
-							return {
-								content: [
-									{
-										type: "text",
-										text: "Error: Cannot divide by zero",
-									},
-								],
-							};
-						result = a / b;
-						break;
-				}
-				return { content: [{ type: "text", text: String(result) }] };
-			}
-		);
-	}
-}
+// Export the MCP class for Durable Objects
+export { VirtualDataMCP };
 
 export default {
 	fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
 
+		// Direct SSE endpoint
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-			return MyMCP.serveSSE("/sse").fetch(request, env, ctx);
+			return VirtualDataMCP.serveSSE("/sse").fetch(request, env, ctx);
 		}
 
+		// HTTP endpoint
 		if (url.pathname === "/mcp") {
-			return MyMCP.serve("/mcp").fetch(request, env, ctx);
+			return VirtualDataMCP.serve("/mcp").fetch(request, env, ctx);
+		}
+
+		// Homepage
+		if (url.pathname === "/") {
+			return new Response(
+				`
+                <h1>IoT MCP Server - Minimal</h1>
+                <p>Acceleronix IoT Platform MCP Server (Minimal Feature Set)</p>
+                <p>MCP SSE Endpoint: /sse</p>
+                <p>MCP HTTP Endpoint: /mcp</p>
+                <p>Status: Ready</p>
+                <p>Version: 1.0.0</p>
+                <br>
+                <h2>Available IoT Tools:</h2>
+                <ul>
+                    <li><strong>Health Check:</strong> health_check</li>
+                    <li><strong>Product Management:</strong> list_products</li>
+                </ul>
+            `,
+				{
+					headers: { "content-type": "text/html" },
+				},
+			);
 		}
 
 		return new Response("Not found", { status: 404 });
