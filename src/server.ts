@@ -17,6 +17,18 @@ export class VirtualDataMCP extends McpAgent {
 			throw new Error("Missing required EUOne API environment variables: BASE_URL, APP_ID, APP_SECRET, INDUSTRY_CODE");
 		}
 
+		// Auto-login on server initialization
+		try {
+			console.log("🚀 MCP Server initializing - attempting automatic login...");
+			await EUOneAPIUtils.getAccessToken(env);
+			console.log("✅ Auto-login successful - MCP server ready");
+		} catch (error) {
+			console.error("❌ Auto-login failed during initialization:", error);
+			// Don't throw error here - allow server to start even if login fails
+			// Login will be retried when tools are called
+			console.log("⚠️ MCP server starting without initial authentication - login will be attempted on first tool use");
+		}
+
 		// Health check / login test tool
 		this.addHealthCheckTool(env);
 

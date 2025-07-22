@@ -13,10 +13,14 @@ let tokenExpiry: number = 0;
 
 export class EUOneAPIUtils {
 	static async getAccessToken(env: EUOneEnvironment): Promise<string> {
-		// Check if we have a valid cached token
-		if (accessToken && Date.now() < tokenExpiry) {
+		// Check if we have a valid cached token (with 60 second buffer for safety)
+		const bufferTime = 60 * 1000; // 60 seconds
+		if (accessToken && Date.now() < (tokenExpiry - bufferTime)) {
+			console.log("🔄 Using cached access token");
 			return accessToken;
 		}
+
+		console.log("🔐 Access token expired or missing - requesting new token");
 
 		// Generate authentication parameters
 		const timestamp = Date.now();
@@ -69,6 +73,8 @@ export class EUOneAPIUtils {
 		const expiresIn = parseInt(data.data.accessTokenExpireIn || '3600');
 		tokenExpiry = Date.now() + expiresIn * 1000;
 
+		console.log(`✅ New access token obtained, expires in ${expiresIn} seconds`);
+		
 		return accessToken!;
 	}
 
