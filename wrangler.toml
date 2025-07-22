@@ -5,10 +5,11 @@ compatibility_flags = ["nodejs_compat"]
 
 # Environment variables
 [vars]
-BASE_URL = "https://iot-api.acceleronix.io"
-# ACCESS_KEY and ACCESS_SECRET should be configured as secrets via:
-# npx wrangler secret put ACCESS_KEY
-# npx wrangler secret put ACCESS_SECRET
+BASE_URL = "https://euone-api.acceleronix.io"
+INDUSTRY_CODE = "eam"
+# Sensitive secrets must be configured via Cloudflare dashboard or CLI:
+# npx wrangler secret put APP_ID "Your APP ID"
+# npx wrangler secret put APP_SECRET "your_app_secret_here"
 
 # Durable Objects
 [[durable_objects.bindings]]

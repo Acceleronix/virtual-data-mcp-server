@@ -1,49 +1,53 @@
 import { z } from "zod";
 
-export interface IoTEnvironment {
+export interface EUOneEnvironment {
 	BASE_URL: string;
-	ACCESS_KEY: string;
-	ACCESS_SECRET: string;
+	APP_ID: string;
+	APP_SECRET: string;
+	INDUSTRY_CODE: string;
 }
 
 // Global token cache
 let accessToken: string | null = null;
 let tokenExpiry: number = 0;
 
-export class IoTAPIUtils {
-	static async getAccessToken(env: IoTEnvironment): Promise<string> {
+export class EUOneAPIUtils {
+	static async getAccessToken(env: EUOneEnvironment): Promise<string> {
 		// Check if we have a valid cached token
 		if (accessToken && Date.now() < tokenExpiry) {
 			return accessToken;
 		}
 
 		// Generate authentication parameters
-		const timestamp = Date.now().toString();
-		const usernameParams = {
-			ver: "1",
-			auth_mode: "accessKey",
-			sign_method: "sha256",
-			access_key: env.ACCESS_KEY,
-			timestamp: timestamp,
-		};
-
-		// Create signature
-		const usernameParamsStr = Object.entries(usernameParams)
-			.map(([k, v]) => `${k}=${v}`)
-			.join("&");
-		const passwordPlain = `${usernameParamsStr}${env.ACCESS_SECRET}`;
+		const timestamp = Date.now();
+		const passwordPlain = `${env.APP_ID}${env.INDUSTRY_CODE}${timestamp}${env.APP_SECRET}`;
+		
+		// Create SHA-256 hash for password
 		const passwordBuffer = await crypto.subtle.digest(
 			"SHA-256",
 			new TextEncoder().encode(passwordPlain),
 		);
-		const passwordHex = Array.from(new Uint8Array(passwordBuffer))
+		const password = Array.from(new Uint8Array(passwordBuffer))
 			.map((b) => b.toString(16).padStart(2, "0"))
 			.join("");
 
-		// Get token
-		const response = await fetch(
-			`${env.BASE_URL}/v2/quecauth/accessKeyAuthrize/accessKeyLogin?grant_type=password&username=${encodeURIComponent(usernameParamsStr)}&password=${passwordHex}`,
-		);
+		// Login request payload (matching Python example structure)
+		const payload = {
+			appId: env.APP_ID,
+			industryCode: env.INDUSTRY_CODE,
+			timestamp: timestamp,
+			password: password,
+		};
+
+		console.log("Login payload:", JSON.stringify(payload, null, 2));
+
+		const response = await fetch(`${env.BASE_URL}/v2/sysuser/openapi/ent/v3/login/pwdAuth`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(payload),
+		});
 
 		if (!response.ok) {
 			throw new Error(`Authentication failed: ${response.status}`);
@@ -56,14 +60,14 @@ export class IoTAPIUtils {
 			throw new Error(`Authentication failed: ${data.msg || 'Unknown error'}`);
 		}
 
-		// Handle different response structures
-		const tokenData = data.data || data;
-		if (!tokenData || !tokenData.access_token) {
+		if (!data.data || !data.data.accessToken) {
 			throw new Error(`Invalid authentication response: ${JSON.stringify(data)}`);
 		}
 
-		accessToken = tokenData.access_token;
-		tokenExpiry = Date.now() + (tokenData.expires_in || 3600) * 1000;
+		accessToken = data.data.accessToken;
+		// Parse expiry time from string to number
+		const expiresIn = parseInt(data.data.accessTokenExpireIn || '3600');
+		tokenExpiry = Date.now() + expiresIn * 1000;
 
 		return accessToken!;
 	}
@@ -79,16 +83,22 @@ export class IoTAPIUtils {
 		}
 	}
 
-	// Product Management - simplified
-	static async listProducts(env: IoTEnvironment): Promise<any[]> {
-		return IoTAPIUtils.safeAPICall(async () => {
-			const token = await IoTAPIUtils.getAccessToken(env);
+	static async healthCheck(env: EUOneEnvironment): Promise<{ status: string }> {
+		return EUOneAPIUtils.safeAPICall(async () => {
+			const token = await EUOneAPIUtils.getAccessToken(env);
+			return { status: "OK - Authentication successful" };
+		});
+	}
+
+	static async getTslModel(env: EUOneEnvironment, productKey: string): Promise<any> {
+		return EUOneAPIUtils.safeAPICall(async () => {
+			const token = await EUOneAPIUtils.getAccessToken(env);
 
 			const response = await fetch(
-				`${env.BASE_URL}/v2/quecproductmgr/r3/openapi/products?pageSize=100&pageNo=1`,
+				`${env.BASE_URL}/v2/product/openapi/ent/v1/product/tsl/acquireTslModelByProductKey?productKey=${encodeURIComponent(productKey)}`,
 				{
 					headers: {
-						Authorization: token,
+						Authorization: `Bearer ${token}`,
 						"Content-Type": "application/json",
 					},
 				},
@@ -99,67 +109,11 @@ export class IoTAPIUtils {
 			}
 
 			const result = (await response.json()) as any;
-			return result.data || [];
-		});
-	}
-
-	static async healthCheck(env: IoTEnvironment): Promise<{ status: string }> {
-		return IoTAPIUtils.safeAPICall(async () => {
-			const token = await IoTAPIUtils.getAccessToken(env);
-
-			// Use product list as health check
-			const response = await fetch(
-				`${env.BASE_URL}/v2/quecproductmgr/r3/openapi/products?pageSize=1&pageNo=1`,
-				{
-					headers: {
-						Authorization: token,
-						"Content-Type": "application/json",
-					},
-				},
-			);
-
-			if (!response.ok) {
-				throw new Error(`Health check failed: ${response.status}`);
+			if (result.code !== 200) {
+				throw new Error(`API call failed: ${result.msg || 'Unknown error'}`);
 			}
 
-			return { status: "OK" };
+			return result.data || {};
 		});
-	}
-
-	// Utility Functions
-	static formatTimestampWithTimezone(timestamp: number): string {
-		if (!timestamp) return "N/A";
-
-		const date = new Date(timestamp);
-		const utc = date.toISOString();
-		const utcPlus8 = new Date(timestamp + 8 * 60 * 60 * 1000)
-			.toISOString()
-			.replace("Z", "+08:00");
-
-		return `${utc} (UTC) / ${utcPlus8} (UTC+8)`;
-	}
-
-	static formatAccessType(accessType: number): string {
-		switch (accessType) {
-			case 0:
-				return "Direct Device";
-			case 1:
-				return "Gateway Device";
-			case 2:
-				return "Gateway Sub-device";
-			default:
-				return `Unknown (${accessType})`;
-		}
-	}
-
-	static formatDataFmt(dataFmt: number): string {
-		switch (dataFmt) {
-			case 0:
-				return "Transparent";
-			case 3:
-				return "Thing Model";
-			default:
-				return `Unknown (${dataFmt})`;
-		}
 	}
 }

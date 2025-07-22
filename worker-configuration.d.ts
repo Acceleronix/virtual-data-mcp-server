@@ -3,8 +3,9 @@ declare namespace Cloudflare {
 	interface Env {
 		MCP_OBJECT: DurableObjectNamespace<import("./src/index").VirtualDataMCP>;
 		BASE_URL: string;
-		ACCESS_KEY: string;
-		ACCESS_SECRET: string;
+		APP_ID: string;
+		APP_SECRET: string;
+		INDUSTRY_CODE: string;
 	}
 }
 interface Env extends Cloudflare.Env {}
