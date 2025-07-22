@@ -70,19 +70,45 @@ export class VirtualDataMCP extends McpAgent {
 			},
 			async (args) => {
 				try {
-					console.log("get_tsl_model args:", JSON.stringify(args, null, 2));
+					console.log("get_tsl_model args received:", JSON.stringify(args, null, 2));
+					console.log("get_tsl_model args type:", typeof args);
+					console.log("get_tsl_model args keys:", args ? Object.keys(args) : "null/undefined");
 					
-					if (!args || !args.productKey) {
-						throw new Error("productKey parameter is required");
+					// Handle different possible argument formats
+					let productKey: string;
+					
+					if (!args) {
+						throw new Error("No arguments provided - productKey parameter is required");
 					}
 					
-					const productKey = z.string().parse(args.productKey);
-					console.log("Validated productKey:", productKey);
+					// Check if args.productKey exists
+					if (args.productKey) {
+						productKey = args.productKey;
+					}
+					// Check if args itself is the productKey (string parameter)
+					else if (typeof args === "string") {
+						productKey = args;
+					}
+					// Check if the first argument is productKey
+					else if (args[0]) {
+						productKey = args[0];
+					}
+					else {
+						throw new Error("productKey parameter is required - please provide a valid product key");
+					}
 					
-					const tslData = await EUOneAPIUtils.getTslModel(env, productKey);
+					// Validate productKey
+					if (!productKey || typeof productKey !== "string") {
+						throw new Error("productKey must be a non-empty string");
+					}
+					
+					const validatedProductKey = z.string().min(1).parse(productKey);
+					console.log("Validated productKey:", validatedProductKey);
+					
+					const tslData = await EUOneAPIUtils.getTslModel(env, validatedProductKey);
 
 					// Format the TSL model data for display
-					let responseText = `📋 TSL Model for Product Key: ${productKey}\n\n`;
+					let responseText = `📋 TSL Model for Product Key: ${validatedProductKey}\n\n`;
 					
 					if (tslData.profile) {
 						responseText += `**Profile Information:**\n`;
