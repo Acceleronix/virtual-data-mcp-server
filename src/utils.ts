@@ -137,6 +137,10 @@ export class EUOneAPIUtils {
 	} = {}): Promise<any> {
 		return EUOneAPIUtils.safeAPICall(async () => {
 			const token = await EUOneAPIUtils.getAccessToken(env);
+			console.log("🔐 Using token for device list (length):", token.length);
+			console.log("⏰ Token expiry check - current time:", new Date().toISOString());
+			console.log("⏰ Token expires at:", new Date(tokenExpiry).toISOString());
+			console.log("⏰ Time until expiry (minutes):", Math.round((tokenExpiry - Date.now()) / 60000));
 
 			// Set default values
 			const requestBody = {
@@ -145,7 +149,7 @@ export class EUOneAPIUtils {
 				...options
 			};
 
-			console.log("Device list request body:", JSON.stringify(requestBody, null, 2));
+			console.log("📝 Device list request body:", JSON.stringify(requestBody, null, 2));
 
 			const response = await fetch(
 				`${env.BASE_URL}/v2/device/openapi/ent/v1/device/list`,
@@ -159,14 +163,58 @@ export class EUOneAPIUtils {
 				},
 			);
 
+			console.log("📡 Device list response status:", response.status);
+			console.log("📡 Device list response headers:", Object.fromEntries(response.headers.entries()));
+
 			if (!response.ok) {
-				throw new Error(`API call failed: ${response.status}`);
+				const errorText = await response.text();
+				console.error("❌ Device list HTTP error response:", errorText);
+				throw new Error(`API call failed: ${response.status} - ${errorText}`);
 			}
 
 			const result = (await response.json()) as any;
-			console.log("Device list response:", JSON.stringify(result, null, 2));
+			console.log("📱 Device list API response:", JSON.stringify(result, null, 2));
 			
 			if (result.code !== 200) {
+				// If session timeout, try to refresh token and retry once
+				if (result.msg && result.msg.includes("Session timed out")) {
+					console.log("🔄 Session timeout detected, forcing token refresh and retrying...");
+					// Clear the cached token to force refresh
+					accessToken = null;
+					tokenExpiry = 0;
+					
+					// Get new token
+					const newToken = await EUOneAPIUtils.getAccessToken(env);
+					console.log("🔐 Retrying with new token (length):", newToken.length);
+					
+					// Retry the request with new token
+					const retryResponse = await fetch(
+						`${env.BASE_URL}/v2/device/openapi/ent/v1/device/list`,
+						{
+							method: "POST",
+							headers: {
+								Authorization: `Bearer ${newToken}`,
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify(requestBody),
+						},
+					);
+
+					if (!retryResponse.ok) {
+						const retryErrorText = await retryResponse.text();
+						throw new Error(`Retry API call failed: ${retryResponse.status} - ${retryErrorText}`);
+					}
+
+					const retryResult = (await retryResponse.json()) as any;
+					console.log("🔄 Retry response:", JSON.stringify(retryResult, null, 2));
+					
+					if (retryResult.code !== 200) {
+						throw new Error(`Retry API call failed: ${retryResult.msg || 'Unknown error'}`);
+					}
+					
+					return retryResult.rows || [];
+				}
+				
 				throw new Error(`API call failed: ${result.msg || 'Unknown error'}`);
 			}
 
