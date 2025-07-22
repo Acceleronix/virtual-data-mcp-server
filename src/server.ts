@@ -59,15 +59,26 @@ export class VirtualDataMCP extends McpAgent {
 			"get_tsl_model",
 			"Get TSL (Thing Specification Language) model by product key",
 			{
-				productKey: {
-					type: "string",
-					description: "The product key to query TSL model for",
-					required: true,
+				type: "object",
+				properties: {
+					productKey: {
+						type: "string",
+						description: "The product key to query TSL model for",
+					},
 				},
+				required: ["productKey"],
 			},
 			async (args) => {
 				try {
+					console.log("get_tsl_model args:", JSON.stringify(args, null, 2));
+					
+					if (!args || !args.productKey) {
+						throw new Error("productKey parameter is required");
+					}
+					
 					const productKey = z.string().parse(args.productKey);
+					console.log("Validated productKey:", productKey);
+					
 					const tslData = await EUOneAPIUtils.getTslModel(env, productKey);
 
 					// Format the TSL model data for display
@@ -123,11 +134,20 @@ export class VirtualDataMCP extends McpAgent {
 						],
 					};
 				} catch (error) {
+					console.error("get_tsl_model error:", error);
+					
+					let errorMessage = "Unknown error";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					} else if (typeof error === "object" && error !== null) {
+						errorMessage = JSON.stringify(error, null, 2);
+					}
+					
 					return {
 						content: [
 							{
 								type: "text",
-								text: `❌ Error getting TSL model: ${error instanceof Error ? error.message : "Unknown error"}`,
+								text: `❌ Error getting TSL model: ${errorMessage}`,
 							},
 						],
 					};
