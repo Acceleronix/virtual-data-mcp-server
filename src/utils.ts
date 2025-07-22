@@ -116,4 +116,55 @@ export class EUOneAPIUtils {
 			return result.data || {};
 		});
 	}
+
+	static async getDeviceList(env: EUOneEnvironment, options: {
+		deviceQueryKey?: string;
+		enableListSubData?: boolean;
+		extFiledList?: string[];
+		mountId?: number;
+		onlineStatus?: number;
+		pageNum?: number;
+		pageSize?: number;
+		productId?: number;
+		runningStatus?: number;
+		orgId?: number;
+	} = {}): Promise<any> {
+		return EUOneAPIUtils.safeAPICall(async () => {
+			const token = await EUOneAPIUtils.getAccessToken(env);
+
+			// Set default values
+			const requestBody = {
+				pageNum: options.pageNum || 1,
+				pageSize: options.pageSize || 10,
+				...options
+			};
+
+			console.log("Device list request body:", JSON.stringify(requestBody, null, 2));
+
+			const response = await fetch(
+				`${env.BASE_URL}/v2/device/openapi/ent/v1/device/list`,
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify(requestBody),
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error(`API call failed: ${response.status}`);
+			}
+
+			const result = (await response.json()) as any;
+			console.log("Device list response:", JSON.stringify(result, null, 2));
+			
+			if (result.code !== 200) {
+				throw new Error(`API call failed: ${result.msg || 'Unknown error'}`);
+			}
+
+			return result.rows || [];
+		});
+	}
 }

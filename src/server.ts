@@ -22,6 +22,9 @@ export class VirtualDataMCP extends McpAgent {
 
 		// TSL model tool
 		this.addTslModelTool(env);
+
+		// Device list tool
+		this.addDeviceListTool(env);
 	}
 
 	private addHealthCheckTool(env: EUOneEnvironment) {
@@ -174,6 +177,154 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting TSL model: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addDeviceListTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_device_list",
+			"Get list of devices with optional filtering parameters",
+			{
+				type: "object",
+				properties: {
+					deviceQueryKey: {
+						type: "string",
+						description: "Device name/DeviceKey/Device SN for search",
+					},
+					enableListSubData: {
+						type: "boolean",
+						description: "Whether to show sub-level data (default: false)",
+					},
+					onlineStatus: {
+						type: "number",
+						description: "Online status filter: 0=offline, 1=online",
+					},
+					pageNum: {
+						type: "number",
+						description: "Page number (default: 1)",
+					},
+					pageSize: {
+						type: "number",
+						description: "Page size (default: 10)",
+					},
+					productId: {
+						type: "number",
+						description: "Product ID filter",
+					},
+					runningStatus: {
+						type: "number",
+						description: "Running status: 1=normal, 2=warning, 3=fault, 4=fault+warning",
+					},
+					orgId: {
+						type: "number",
+						description: "Organization ID filter",
+					},
+				},
+				required: [],
+			},
+			async (args) => {
+				try {
+					console.log("get_device_list args received:", JSON.stringify(args, null, 2));
+					
+					// Parse and validate arguments
+					const options: any = {};
+					
+					if (args && typeof args === "object") {
+						if (args.deviceQueryKey) options.deviceQueryKey = args.deviceQueryKey;
+						if (typeof args.enableListSubData === "boolean") options.enableListSubData = args.enableListSubData;
+						if (typeof args.onlineStatus === "number") options.onlineStatus = args.onlineStatus;
+						if (typeof args.pageNum === "number") options.pageNum = args.pageNum;
+						if (typeof args.pageSize === "number") options.pageSize = args.pageSize;
+						if (typeof args.productId === "number") options.productId = args.productId;
+						if (typeof args.runningStatus === "number") options.runningStatus = args.runningStatus;
+						if (typeof args.orgId === "number") options.orgId = args.orgId;
+					}
+
+					console.log("Processed options:", JSON.stringify(options, null, 2));
+					
+					const deviceList = await EUOneAPIUtils.getDeviceList(env, options);
+
+					// Format the device list data for display
+					let responseText = `📱 Device List (Page ${options.pageNum || 1})\n\n`;
+					
+					if (!deviceList || deviceList.length === 0) {
+						responseText += "No devices found.\n";
+					} else {
+						responseText += `**Found ${deviceList.length} devices:**\n\n`;
+						
+						deviceList.forEach((device: any, index: number) => {
+							responseText += `${index + 1}. **${device.deviceName || device.deviceKey || 'Unknown Device'}**\n`;
+							responseText += `   - Device ID: ${device.deviceId || 'N/A'}\n`;
+							responseText += `   - Device Key: ${device.deviceKey || 'N/A'}\n`;
+							responseText += `   - Device SN: ${device.deviceSn || 'N/A'}\n`;
+							responseText += `   - Product: ${device.productName || 'N/A'} (ID: ${device.productId || 'N/A'})\n`;
+							responseText += `   - Online Status: ${device.onlineStatus === 1 ? '🟢 Online' : '🔴 Offline'}\n`;
+							
+							// Running status
+							const statusMap: { [key: number]: string } = {
+								1: '✅ Normal',
+								2: '⚠️ Warning',
+								3: '❌ Fault',
+								4: '⚠️❌ Fault + Warning'
+							};
+							responseText += `   - Running Status: ${statusMap[device.runningStatus] || 'Unknown'}\n`;
+							
+							// Activation status
+							responseText += `   - Activation: ${device.activationStatus === 1 ? 'Activated' : 'Not Activated'}\n`;
+							
+							// Network type
+							const netWayMap: { [key: number]: string } = {
+								1: 'WiFi',
+								2: 'Cellular',
+								3: 'NB-IoT',
+								4: 'Other',
+								5: 'Bluetooth'
+							};
+							responseText += `   - Network: ${netWayMap[device.netWay] || 'Unknown'}\n`;
+							
+							// Organization
+							if (device.orgName) {
+								responseText += `   - Organization: ${device.orgName}\n`;
+							}
+							
+							// Last online time
+							if (device.tsLastOnlineTime) {
+								const lastOnline = new Date(device.tsLastOnlineTime).toLocaleString();
+								responseText += `   - Last Online: ${lastOnline}\n`;
+							}
+							
+							responseText += `\n`;
+						});
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("get_device_list error:", error);
+					
+					let errorMessage = "Unknown error";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					} else if (typeof error === "object" && error !== null) {
+						errorMessage = JSON.stringify(error, null, 2);
+					}
+					
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting device list: ${errorMessage}`,
 							},
 						],
 					};
