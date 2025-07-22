@@ -50,12 +50,20 @@ export class IoTAPIUtils {
 		}
 
 		const data = (await response.json()) as any;
+		console.log("Auth response:", JSON.stringify(data, null, 2));
+		
 		if (data.code !== 200) {
-			throw new Error(`Authentication failed: ${data.msg}`);
+			throw new Error(`Authentication failed: ${data.msg || 'Unknown error'}`);
 		}
 
-		accessToken = data.data.access_token;
-		tokenExpiry = Date.now() + data.data.expires_in * 1000;
+		// Handle different response structures
+		const tokenData = data.data || data;
+		if (!tokenData || !tokenData.access_token) {
+			throw new Error(`Invalid authentication response: ${JSON.stringify(data)}`);
+		}
+
+		accessToken = tokenData.access_token;
+		tokenExpiry = Date.now() + (tokenData.expires_in || 3600) * 1000;
 
 		return accessToken!;
 	}
