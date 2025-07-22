@@ -34,6 +34,7 @@ export default {
                     <li><strong>Login Test:</strong> login_test - Test EUOne API authentication</li>
                     <li><strong>Get TSL Model:</strong> get_tsl_model - Get Thing Specification Language model by product key</li>
                     <li><strong>Get Device List:</strong> get_device_list - Get list of devices with optional filtering</li>
+                    <li><strong>Report Device Data:</strong> report_device_data - Report device data using TSL model properties</li>
                 </ul>
                 <br>
                 <h3>Environment Variables Required:</h3>

@@ -37,6 +37,9 @@ export class VirtualDataMCP extends McpAgent {
 
 		// Device list tool
 		this.addDeviceListTool(env);
+
+		// Device report tool
+		this.addDeviceReportTool(env);
 	}
 
 	private addHealthCheckTool(env: EUOneEnvironment) {
@@ -337,6 +340,114 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting device list: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addDeviceReportTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"report_device_data",
+			"Report device data using device's TSL model properties",
+			{
+				type: "object",
+				properties: {
+					productKey: {
+						type: "string",
+						description: "Product key (PK) of the device",
+					},
+					deviceKey: {
+						type: "string",
+						description: "Device key (DK) of the device",
+					},
+					data: {
+						type: "object",
+						description: "Device property data based on TSL model (key-value pairs)",
+						additionalProperties: true,
+					},
+					upTsTime: {
+						type: "number",
+						description: "Report timestamp (optional, defaults to current time)",
+					},
+				},
+				required: ["productKey", "deviceKey", "data"],
+			},
+			async (args) => {
+				try {
+					console.log("report_device_data args received:", JSON.stringify(args, null, 2));
+					
+					// Validate required parameters
+					if (!args || !args.productKey || !args.deviceKey || !args.data) {
+						throw new Error("Missing required parameters: productKey, deviceKey, and data are required");
+					}
+
+					// Validate that data is an object with properties
+					if (typeof args.data !== "object" || Object.keys(args.data).length === 0) {
+						throw new Error("data parameter must be a non-empty object containing device properties");
+					}
+
+					const options = {
+						productKey: args.productKey,
+						deviceKey: args.deviceKey,
+						data: args.data,
+						upTsTime: args.upTsTime
+					};
+
+					console.log("Processed device report options:", JSON.stringify(options, null, 2));
+					
+					const result = await EUOneAPIUtils.reportDeviceData(env, options);
+
+					// Format the response
+					let responseText = `📤 Device Data Report Successful\n\n`;
+					responseText += `**Device Information:**\n`;
+					responseText += `- Product Key: ${options.productKey}\n`;
+					responseText += `- Device Key: ${options.deviceKey}\n`;
+					responseText += `- Report Time: ${new Date(options.upTsTime || Date.now()).toLocaleString()}\n\n`;
+					
+					responseText += `**Reported Properties:**\n`;
+					for (const [key, value] of Object.entries(options.data)) {
+						responseText += `- ${key}: ${JSON.stringify(value)}\n`;
+					}
+					
+					if (result && typeof result === "object") {
+						responseText += `\n**API Response:**\n`;
+						if (result.code !== undefined) {
+							responseText += `- Status Code: ${result.code}\n`;
+						}
+						if (result.msg) {
+							responseText += `- Message: ${result.msg}\n`;
+						}
+						if (result.data) {
+							responseText += `- Response Data: ${JSON.stringify(result.data)}\n`;
+						}
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("report_device_data error:", error);
+					
+					let errorMessage = "Unknown error";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					} else if (typeof error === "object" && error !== null) {
+						errorMessage = JSON.stringify(error, null, 2);
+					}
+					
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error reporting device data: ${errorMessage}`,
 							},
 						],
 					};

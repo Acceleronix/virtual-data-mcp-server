@@ -221,4 +221,96 @@ export class EUOneAPIUtils {
 			return result.rows || [];
 		});
 	}
+
+	static async reportDeviceData(env: EUOneEnvironment, options: {
+		productKey: string;
+		deviceKey: string;
+		data: Record<string, any>; // Dynamic properties from device's TSL model
+		upTsTime?: number;
+	}): Promise<any> {
+		return EUOneAPIUtils.safeAPICall(async () => {
+			const token = await EUOneAPIUtils.getAccessToken(env);
+			console.log("🔐 Using token for device report (length):", token.length);
+
+			// Set default timestamp if not provided
+			const requestBody = {
+				productKey: options.productKey,
+				deviceKey: options.deviceKey,
+				data: options.data, // User-provided property values
+				upTsTime: options.upTsTime || Date.now()
+			};
+
+			console.log("📤 Device report request body:", JSON.stringify(requestBody, null, 2));
+
+			const response = await fetch(
+				`${env.BASE_URL}/v2/device/data/fake/up`,
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify(requestBody),
+				},
+			);
+
+			console.log("📡 Device report response status:", response.status);
+			console.log("📡 Device report response headers:", Object.fromEntries(response.headers.entries()));
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error("❌ Device report HTTP error response:", errorText);
+				throw new Error(`API call failed: ${response.status} - ${errorText}`);
+			}
+
+			const result = (await response.json()) as any;
+			console.log("📤 Device report API response:", JSON.stringify(result, null, 2));
+			
+			// Handle potential session timeout and retry
+			if (result.code && result.code !== 200) {
+				if (result.msg && result.msg.includes("Session timed out")) {
+					console.log("🔄 Session timeout detected, forcing token refresh and retrying...");
+					// Clear the cached token to force refresh
+					accessToken = null;
+					tokenExpiry = 0;
+					
+					// Get new token
+					const newToken = await EUOneAPIUtils.getAccessToken(env);
+					console.log("🔐 Retrying device report with new token (length):", newToken.length);
+					
+					// Retry the request with new token
+					const retryResponse = await fetch(
+						`${env.BASE_URL}/v2/device/data/fake/up`,
+						{
+							method: "POST",
+							headers: {
+								Authorization: `Bearer ${newToken}`,
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify(requestBody),
+						},
+					);
+
+					if (!retryResponse.ok) {
+						const retryErrorText = await retryResponse.text();
+						throw new Error(`Retry API call failed: ${retryResponse.status} - ${retryErrorText}`);
+					}
+
+					const retryResult = (await retryResponse.json()) as any;
+					console.log("🔄 Device report retry response:", JSON.stringify(retryResult, null, 2));
+					
+					if (retryResult.code && retryResult.code !== 200) {
+						throw new Error(`Retry API call failed: ${retryResult.msg || 'Unknown error'}`);
+					}
+					
+					return retryResult;
+				}
+				
+				throw new Error(`API call failed: ${result.msg || 'Unknown error'}`);
+			}
+
+			// For successful response (code 200 or no code field)
+			return result;
+		});
+	}
 }
