@@ -1,4 +1,4 @@
-name = "saas-mcp-server"
+name = "virtual-data-mcp-server"
 main = "src/index.ts"
 compatibility_date = "2025-06-20"
 compatibility_flags = ["nodejs_compat"]
