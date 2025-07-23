@@ -780,8 +780,8 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(args, null, 2),
 					);
 
-					const DEFAULT_PAGE_SIZE = 30;  // As per user specification
-					let pageNo = 1;                 // Start from page 1 to check if products exist
+					const DEFAULT_PAGE_SIZE = 40;  // Match API Playground exactly
+					let pageNo = 1;                 // Match API Playground exactly
 					let pageSize = DEFAULT_PAGE_SIZE;
 
 					// Parse cursor if provided
