@@ -888,7 +888,7 @@ export class VirtualDataMCP extends McpAgent {
 					}
 
 					const productData = (await apiResponse.json()) as any;
-					console.log("📋 API success, code:", productData.code, "rows:", productData.rows?.length || 0);
+					console.log("📋 Full API response:", JSON.stringify(productData, null, 2));
 
 					// Format the simplified response
 					const products = productData.rows || [];
