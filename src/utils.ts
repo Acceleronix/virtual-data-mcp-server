@@ -424,7 +424,7 @@ export class EUOneAPIUtils {
 
 			// Set pagination parameters (using small page size like health_check)
 			const pageNum = options.pageNum ? String(options.pageNum) : "1";
-			const pageSize = options.pageSize ? String(options.pageSize) : "10"; // Smaller default to match working pattern
+			const pageSize = options.pageSize ? String(options.pageSize) : "50"; // Large enough to get most product lists
 
 			queryParams.append("pageNum", pageNum);
 			queryParams.append("pageSize", pageSize);

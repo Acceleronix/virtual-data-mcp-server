@@ -144,7 +144,11 @@ export class VirtualDataMCP extends McpAgent {
 					},
 					pageSize: {
 						type: "number",
-						description: "Number of products per page, max 200 (optional, auto-optimized)",
+						description: "Number of products per page, max 200 (default: 50). Use pageSize: 31 to get all your products.",
+					},
+					pageNum: {
+						type: "number", 
+						description: "Page number starting from 1 (optional, default: 1)",
 					},
 				},
 				required: [],
@@ -156,7 +160,7 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(args, null, 2),
 					);
 
-					const DEFAULT_PAGE_SIZE = 10; // Small page size to match working health_check pattern
+					const DEFAULT_PAGE_SIZE = 50; // Large enough to get most product lists in one call
 					const MAX_PAGE_SIZE = 200; // API limit
 
 					// Apply intelligent page size optimization
@@ -272,8 +276,8 @@ export class VirtualDataMCP extends McpAgent {
 
 					let responseText = `📋 **Product List**\n`;
 					responseText += `Found ${products.length} products (Total: ${total})\n`;
-					if (total > pageSize) {
-						responseText += `💡 Showing first ${pageSize} products. Use pageSize parameter for more (max: 200).\n`;
+					if (total > products.length) {
+						responseText += `💡 Showing ${products.length} of ${total} products. Use pageSize: ${Math.min(200, total)} to get all products.\n`;
 					}
 					responseText += `============================================================\n\n`;
 
@@ -309,7 +313,8 @@ export class VirtualDataMCP extends McpAgent {
 
 						if (total > products.length) {
 							responseText += `📊 **Summary**: Showing ${products.length} of ${total} total products\n`;
-							responseText += `💡 To see more products, use pageSize: ${Math.min(200, total)} in your next request.\n`;
+							responseText += `💡 To see all products at once, call: get_product_list with pageSize: ${total}\n`;
+							responseText += `📄 Or browse by pages: pageNum: 2, pageNum: 3, etc.\n`;
 						}
 					}
 
