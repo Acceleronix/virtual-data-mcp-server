@@ -34,8 +34,8 @@ export function decodeCursor(cursorStr: string): PaginationCursor {
 
 export class EUOneAPIUtils {
 	static async getAccessToken(env: EUOneEnvironment): Promise<string> {
-		// Check if we have a valid cached token (with 60 second buffer for safety)
-		const bufferTime = 60 * 1000; // 60 seconds
+		// Check if we have a valid cached token (with 120 second buffer for safety)
+		const bufferTime = 120 * 1000; // 120 seconds for better safety margin
 		if (accessToken && Date.now() < tokenExpiry - bufferTime) {
 			console.log("🔄 Using cached access token");
 			return accessToken;
@@ -114,6 +114,65 @@ export class EUOneAPIUtils {
 				throw new Error(`API Error: ${error.message}`);
 			}
 			throw new Error("Unknown API error occurred");
+		}
+	}
+
+	// Helper method to ensure we have a valid token before making API calls
+	static async ensureValidToken(env: EUOneEnvironment): Promise<string> {
+		try {
+			// Always try to get/refresh token before any API call
+			const token = await EUOneAPIUtils.getAccessToken(env);
+			console.log("✅ Token validation successful");
+			return token;
+		} catch (error) {
+			console.error("❌ Token validation failed:", error);
+			// Force token refresh by clearing cache
+			accessToken = null;
+			tokenExpiry = 0;
+			// Try once more
+			return await EUOneAPIUtils.getAccessToken(env);
+		}
+	}
+
+	// Enhanced API call with automatic token refresh on session timeout
+	static async safeAPICallWithTokenRefresh<T>(
+		env: EUOneEnvironment,
+		apiCall: (token: string) => Promise<T>
+	): Promise<T> {
+		try {
+			// Ensure we have a valid token first
+			const token = await EUOneAPIUtils.ensureValidToken(env);
+			return await apiCall(token);
+		} catch (error) {
+			// Check if it's a session timeout error (check multiple patterns)
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			const isSessionTimeout = errorMessage.includes("Session timed out") || 
+									 errorMessage.includes("session timeout") ||
+									 errorMessage.includes("401") ||
+									 errorMessage.includes("Unauthorized");
+			
+			if (isSessionTimeout) {
+				console.log("🔄 Session timeout/auth error detected, forcing token refresh and retrying...");
+				console.log("🔍 Error details:", errorMessage);
+				
+				// Clear cached token and get new one
+				accessToken = null;
+				tokenExpiry = 0;
+				
+				try {
+					const newToken = await EUOneAPIUtils.ensureValidToken(env);
+					console.log("🔐 Retrying API call with new token");
+					
+					// Retry the API call with new token
+					return await apiCall(newToken);
+				} catch (retryError) {
+					console.error("❌ Retry failed:", retryError);
+					throw new Error(`Retry API call failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+				}
+			}
+			
+			// Re-throw other errors
+			throw error;
 		}
 	}
 
@@ -308,8 +367,7 @@ export class EUOneAPIUtils {
 			pageSize?: string | number;
 		} = {},
 	): Promise<any> {
-		return EUOneAPIUtils.safeAPICall(async () => {
-			const token = await EUOneAPIUtils.getAccessToken(env);
+		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
 			console.log("🔐 Using token for product list (length):", token.length);
 			console.log(
 				"⏰ Token expiry check - current time:",
@@ -409,51 +467,6 @@ export class EUOneAPIUtils {
 			);
 
 			if (result.code !== 200) {
-				// If session timeout, try to refresh token and retry once
-				if (result.msg && result.msg.includes("Session timed out")) {
-					console.log(
-						"🔄 Session timeout detected, forcing token refresh and retrying...",
-					);
-					// Clear the cached token to force refresh
-					accessToken = null;
-					tokenExpiry = 0;
-
-					// Get new token
-					const newToken = await EUOneAPIUtils.getAccessToken(env);
-					console.log("🔐 Retrying with new token (length):", newToken.length);
-
-					// Retry the request with new token
-					const retryResponse = await fetch(url, {
-						method: "GET",
-						headers: {
-							Authorization: `Bearer ${newToken}`,
-							"Content-Type": "application/json",
-							"Accept-Language": "en-US",
-						},
-					});
-
-					if (!retryResponse.ok) {
-						const retryErrorText = await retryResponse.text();
-						throw new Error(
-							`Retry API call failed: ${retryResponse.status} - ${retryErrorText}`,
-						);
-					}
-
-					const retryResult = (await retryResponse.json()) as any;
-					console.log(
-						"🔄 Retry response:",
-						JSON.stringify(retryResult, null, 2),
-					);
-
-					if (retryResult.code !== 200) {
-						throw new Error(
-							`Retry API call failed: ${retryResult.msg || "Unknown error"}`,
-						);
-					}
-
-					return retryResult;
-				}
-
 				throw new Error(`API call failed: ${result.msg || "Unknown error"}`);
 			}
 

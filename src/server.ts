@@ -24,17 +24,17 @@ export class VirtualDataMCP extends McpAgent {
 			);
 		}
 
-		// Auto-login on server initialization
+		// Auto-login on server initialization with improved error handling
 		try {
 			console.log("🚀 MCP Server initializing - attempting automatic login...");
-			await EUOneAPIUtils.getAccessToken(env);
+			await EUOneAPIUtils.ensureValidToken(env);
 			console.log("✅ Auto-login successful - MCP server ready");
 		} catch (error) {
 			console.error("❌ Auto-login failed during initialization:", error);
 			// Don't throw error here - allow server to start even if login fails
-			// Login will be retried when tools are called
+			// Login will be retried when tools are called with automatic refresh
 			console.log(
-				"⚠️ MCP server starting without initial authentication - login will be attempted on first tool use",
+				"⚠️ MCP server starting without initial authentication - login will be attempted on first tool use with auto-refresh",
 			);
 		}
 
@@ -779,6 +779,11 @@ export class VirtualDataMCP extends McpAgent {
 						"get_product_list_paginated args received:",
 						JSON.stringify(args, null, 2),
 					);
+
+					// Proactively ensure we have a valid token before starting
+					console.log("🔐 Ensuring valid authentication token before API call...");
+					await EUOneAPIUtils.ensureValidToken(env);
+					console.log("✅ Token validation successful, proceeding with product list query");
 
 					const DEFAULT_PAGE_SIZE = 15;
 					let pageNo = 1;
