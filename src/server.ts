@@ -2,6 +2,7 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
 	type EUOneEnvironment,
+	EUOneAPIUtils,
 } from "./utils";
 import { z } from "zod";
 
@@ -11,157 +12,6 @@ export class VirtualDataMCP extends McpAgent {
 		version: "2.0.0",
 	});
 
-	// Instance-level token cache to ensure token sharing across tool calls
-	private accessToken: string | null = null;
-	private tokenExpiry: number = 0;
-
-	// Instance-level token management to avoid Durable Object isolation issues
-	private async getAccessToken(env: EUOneEnvironment): Promise<string> {
-		// Check if we have a valid cached token (with 120 second buffer for safety)
-		const bufferTime = 120 * 1000; // 120 seconds for better safety margin
-		if (this.accessToken && Date.now() < this.tokenExpiry - bufferTime) {
-			console.log("🔄 Using instance cached access token (expires in", Math.round((this.tokenExpiry - Date.now()) / 1000), "seconds)");
-			return this.accessToken;
-		}
-
-		console.log("🔐 Access token expired or missing - requesting new token");
-
-		// Generate authentication parameters exactly matching API Playground format
-		const timestamp = Date.now().toString(); // Convert to string like API Playground
-		const passwordPlain = `${env.APP_ID}${env.INDUSTRY_CODE}${timestamp}${env.APP_SECRET}`;
-
-		console.log("🔍 Debug authentication generation:");
-		console.log(`   APP_ID: ${env.APP_ID}`);
-		console.log(`   INDUSTRY_CODE: ${env.INDUSTRY_CODE}`);
-		console.log(`   timestamp: ${timestamp}`);
-		console.log(`   passwordPlain: ${passwordPlain}`);
-
-		// Create SHA-256 hash for password using optimized approach
-		const encoder = new TextEncoder();
-		const data = encoder.encode(passwordPlain);
-		const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-		const hashArray = Array.from(new Uint8Array(hashBuffer));
-		const password = hashArray
-			.map((b) => b.toString(16).padStart(2, "0"))
-			.join("");
-
-		console.log(`   Generated password hash: ${password}`);
-
-		// Login request payload (matching API Playground exactly)
-		const payload = {
-			appId: env.APP_ID,
-			industryCode: env.INDUSTRY_CODE,
-			timestamp: timestamp, // String format like API Playground
-			password: password,
-		};
-
-		console.log("Login payload:", JSON.stringify(payload, null, 2));
-
-		try {
-			const response = await fetch(
-				`${env.BASE_URL}/v2/sysuser/openapi/ent/v3/login/pwdAuth`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify(payload),
-				},
-			);
-
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
-
-			const data = (await response.json()) as any;
-			console.log("Auth response:", JSON.stringify(data, null, 2));
-
-			if (data.code !== 200) {
-				throw new Error(
-					`Authentication failed: ${data.msg || "Unknown error"}`,
-				);
-			}
-
-			if (!data.data || !data.data.accessToken) {
-				throw new Error(
-					`Invalid authentication response: ${JSON.stringify(data)}`,
-				);
-			}
-
-			this.accessToken = data.data.accessToken;
-
-			if (!this.accessToken) {
-				throw new Error("No access token received from API");
-			}
-
-			// Parse expiry time from string to number with enhanced error handling
-			const expiresIn = parseInt(data.data.accessTokenExpireIn || "3600");
-			// Set expiry to 1 hour from now (tokens typically last longer)
-			this.tokenExpiry = Date.now() + expiresIn * 1000;
-
-			console.log(
-				`✅ New access token obtained, expires in ${expiresIn} seconds`,
-			);
-
-			return this.accessToken!;
-		} catch (error) {
-			console.error("API Error:", error);
-			throw new Error("Failed to get access token");
-		}
-	}
-
-	// Instance-level API call with automatic token refresh
-	private async safeAPICallWithTokenRefresh<T>(
-		env: EUOneEnvironment,
-		apiCall: (token: string) => Promise<T>,
-	): Promise<T> {
-		try {
-			// Get token from instance cache (with automatic pre-warming)
-			console.log("🔐 Ensuring valid token for API call...");
-			const token = await this.getAccessToken(env);
-			console.log("✅ Token ready, executing API call");
-			return await apiCall(token);
-		} catch (error) {
-			// Check if it's a session timeout error
-			const errorMessage =
-				error instanceof Error ? error.message : String(error);
-			const isSessionTimeout =
-				errorMessage.includes("Session timed out") ||
-				errorMessage.includes("session timeout") ||
-				errorMessage.includes("401") ||
-				errorMessage.includes("Unauthorized");
-
-			if (isSessionTimeout) {
-				console.log(
-					"🔄 Session timeout/auth error detected, forcing token refresh and retrying...",
-				);
-				console.log("🔍 Error details:", errorMessage);
-
-				// Clear instance cached token and get new one
-				this.accessToken = null;
-				this.tokenExpiry = 0;
-
-				try {
-					console.log("🔐 Getting fresh token for retry...");
-					const newToken = await this.getAccessToken(env);
-					console.log("✅ Fresh token obtained, retrying API call");
-
-					// Retry the API call with new token
-					const result = await apiCall(newToken);
-					console.log("✅ API call succeeded after token refresh");
-					return result;
-				} catch (retryError) {
-					console.error("❌ Retry failed after token refresh:", retryError);
-					throw new Error(
-						`Retry API call failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
-					);
-				}
-			}
-
-			// Re-throw other errors
-			throw error;
-		}
-	}
 
 	async init() {
 		console.log("🚀 MCP Server starting initialization...");
@@ -200,9 +50,8 @@ export class VirtualDataMCP extends McpAgent {
 		if (env.BASE_URL && env.APP_ID && env.APP_SECRET && env.INDUSTRY_CODE) {
 			try {
 				console.log("🔐 Pre-warming authentication for better user experience...");
-				await this.getAccessToken(env);
+				await EUOneAPIUtils.getAccessToken(env);
 				console.log("✅ Authentication pre-warmed - MCP server ready for immediate use");
-				console.log(`🎯 Token expires at: ${new Date(this.tokenExpiry).toLocaleString()}`);
 			} catch (error) {
 				console.error("❌ Authentication pre-warming failed:", error);
 				// Don't throw error here - allow server to start even if login fails
@@ -220,8 +69,8 @@ export class VirtualDataMCP extends McpAgent {
 
 	private addHealthCheckTool(env: EUOneEnvironment) {
 		this.server.tool(
-			"login_test",
-			"Test Acceleronix SaaS API login and authentication status",
+			"health_check",
+			"Comprehensive health check - test authentication, token status, and API connectivity",
 			{
 				type: "object",
 				properties: {},
@@ -229,12 +78,25 @@ export class VirtualDataMCP extends McpAgent {
 			},
 			async (args) => {
 				try {
-					const token = await this.getAccessToken(env);
+					const healthStatus = await EUOneAPIUtils.healthCheck(env);
+					
+					let statusText = `🏥 **MCP Server Health Check**\n\n`;
+					statusText += `✅ **Authentication**: ${healthStatus.status}\n`;
+					statusText += `🔑 **Token Status**: ${healthStatus.tokenStatus}\n`;
+					statusText += `⏰ **Token Expires**: ${healthStatus.tokenExpiry}\n`;
+					statusText += `🌐 **API Connectivity**: ${healthStatus.apiConnectivity}\n\n`;
+					
+					if (healthStatus.apiConnectivity === "OK") {
+						statusText += `🎯 **Overall Status**: All systems operational - ready for Claude Desktop use\n`;
+					} else {
+						statusText += `⚠️ **Overall Status**: Authentication OK but API connectivity issues detected\n`;
+					}
+					
 					return {
 						content: [
 							{
 								type: "text",
-								text: `✅ Acceleronix SaaS API Login Test: OK - Authentication successful`,
+								text: statusText,
 							},
 						],
 					};
@@ -243,13 +105,14 @@ export class VirtualDataMCP extends McpAgent {
 						content: [
 							{
 								type: "text",
-								text: `❌ Acceleronix SaaS API Login Test Failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+								text: `❌ **Health Check Failed**: ${error instanceof Error ? error.message : "Unknown error"}\n\nThis may indicate authentication issues or network connectivity problems.`,
 							},
 						],
 					};
 				}
 			},
 		);
+		
 	}
 
 
@@ -325,9 +188,9 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(options, null, 2),
 					);
 
-					// Use instance-level token management
-					const productData = await this.safeAPICallWithTokenRefresh(env, async (token) => {
-						console.log("🔐 Using instance token for product list");
+					// Use centralized token management from utils
+					const productData = await EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
+						console.log("🔐 Using centralized token for product list");
 
 						const queryParams = new URLSearchParams();
 						queryParams.append("pageNum", String(options.pageNum));

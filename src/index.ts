@@ -31,7 +31,7 @@ export default {
                 <br>
                 <h2>Available Tools:</h2>
                 <ul>
-                    <li><strong>Login Test:</strong> login_test - Test Acceleronix SaaS API authentication</li>
+                    <li><strong>Health Check:</strong> health_check - Comprehensive health check with authentication, token status, and API connectivity</li>
                     <li><strong>Get Product List:</strong> get_product_list - Get list of products with intelligent pagination and filtering</li>
                 </ul>
                 <br>

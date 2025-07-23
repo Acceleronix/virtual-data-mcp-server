@@ -7,9 +7,10 @@ export interface EUOneEnvironment {
 	INDUSTRY_CODE: string;
 }
 
-// Global token cache
+// Global token cache - enhanced with lock mechanism
 let accessToken: string | null = null;
 let tokenExpiry: number = 0;
+let tokenRefreshPromise: Promise<string> | null = null;
 
 // Pagination cursor interface
 interface PaginationCursor {
@@ -39,6 +40,12 @@ export class EUOneAPIUtils {
 		if (accessToken && Date.now() < tokenExpiry - bufferTime) {
 			console.log("🔄 Using cached access token (expires in", Math.round((tokenExpiry - Date.now()) / 1000), "seconds)");
 			return accessToken;
+		}
+
+		// Check if there's already a token refresh in progress (prevents duplicate requests)
+		if (tokenRefreshPromise) {
+			console.log("⏳ Token refresh already in progress, waiting for completion...");
+			return await tokenRefreshPromise;
 		}
 
 		console.log("🔐 Access token expired or missing - requesting new token");
@@ -74,17 +81,19 @@ export class EUOneAPIUtils {
 
 		console.log("Login payload:", JSON.stringify(payload, null, 2));
 
-		try {
-			const response = await fetch(
-				`${env.BASE_URL}/v2/sysuser/openapi/ent/v3/login/pwdAuth`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
+		// Create the token refresh promise to prevent concurrent requests
+		tokenRefreshPromise = (async (): Promise<string> => {
+			try {
+				const response = await fetch(
+					`${env.BASE_URL}/v2/sysuser/openapi/ent/v3/login/pwdAuth`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify(payload),
 					},
-					body: JSON.stringify(payload),
-				},
-			);
+				);
 
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -120,11 +129,18 @@ export class EUOneAPIUtils {
 				`✅ New access token obtained, expires in ${expiresIn} seconds`,
 			);
 
-			return accessToken!;
-		} catch (error) {
-			console.error("API Error:", error);
-			throw new Error("Failed to get access token");
-		}
+				return accessToken!;
+			} catch (error) {
+				console.error("API Error:", error);
+				throw new Error("Failed to get access token");
+			} finally {
+				// Clear the promise reference when done
+				tokenRefreshPromise = null;
+			}
+		})();
+
+		// Return the promise to wait for completion
+		return await tokenRefreshPromise;
 	}
 
 	static async safeAPICall<T>(apiCall: () => Promise<T>): Promise<T> {
@@ -179,53 +195,110 @@ export class EUOneAPIUtils {
 		env: EUOneEnvironment,
 		apiCall: (token: string) => Promise<T>,
 	): Promise<T> {
-		try {
-			// Ensure we have a valid token first
-			const token = await EUOneAPIUtils.ensureValidToken(env);
-			return await apiCall(token);
-		} catch (error) {
-			// Check if it's a session timeout error (check multiple patterns)
-			const errorMessage =
-				error instanceof Error ? error.message : String(error);
-			const isSessionTimeout =
-				errorMessage.includes("Session timed out") ||
-				errorMessage.includes("session timeout") ||
-				errorMessage.includes("401") ||
-				errorMessage.includes("Unauthorized");
+		let retryCount = 0;
+		const maxRetries = 2;
 
-			if (isSessionTimeout) {
-				console.log(
-					"🔄 Session timeout/auth error detected, forcing token refresh and retrying...",
-				);
-				console.log("🔍 Error details:", errorMessage);
-
-				// Clear cached token and get new one
-				accessToken = null;
-				tokenExpiry = 0;
-
-				try {
-					const newToken = await EUOneAPIUtils.ensureValidToken(env);
-					console.log("🔐 Retrying API call with new token");
-
-					// Retry the API call with new token
-					return await apiCall(newToken);
-				} catch (retryError) {
-					console.error("❌ Retry failed:", retryError);
-					throw new Error(
-						`Retry API call failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
-					);
+		while (retryCount <= maxRetries) {
+			try {
+				// Ensure we have a valid token first
+				const token = await EUOneAPIUtils.ensureValidToken(env);
+				const result = await apiCall(token);
+				
+				// If successful, log and return
+				if (retryCount > 0) {
+					console.log(`✅ API call succeeded after ${retryCount} retry(ies)`);
 				}
-			}
+				return result;
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				
+				// Enhanced error detection for authentication/session issues
+				const isAuthError = (
+					errorMessage.includes("Session timed out") ||
+					errorMessage.includes("session timeout") ||
+					errorMessage.includes("401") ||
+					errorMessage.includes("Unauthorized") ||
+					errorMessage.includes("token") ||
+					errorMessage.includes("auth") ||
+					errorMessage.includes("expired") ||
+					// Check for common HTTP auth status codes
+					errorMessage.includes("HTTP 401") ||
+					errorMessage.includes("HTTP 403")
+				);
 
-			// Re-throw other errors
-			throw error;
+				// Only retry on authentication errors and if we haven't exceeded max retries
+				if (isAuthError && retryCount < maxRetries) {
+					retryCount++;
+					console.log(
+						`🔄 Authentication error detected (attempt ${retryCount}/${maxRetries}), forcing token refresh and retrying...`,
+					);
+					console.log("🔍 Error details:", errorMessage);
+
+					// Clear cached token to force fresh authentication
+					accessToken = null;
+					tokenExpiry = 0;
+					tokenRefreshPromise = null; // Also clear any pending refresh
+
+					// Wait a bit before retrying to avoid rapid-fire requests
+					await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+					
+					continue; // Retry the loop
+				}
+
+				// If not an auth error or we've exceeded retries, throw the error
+				if (retryCount > 0) {
+					console.error(`❌ Failed after ${retryCount} retry(ies):`, errorMessage);
+				}
+				throw error;
+			}
 		}
+
+		// Should never reach here, but TypeScript needs it
+		throw new Error("Maximum retries exceeded");
 	}
 
-	static async healthCheck(env: EUOneEnvironment): Promise<{ status: string }> {
+	static async healthCheck(env: EUOneEnvironment): Promise<{ 
+		status: string; 
+		tokenStatus: string; 
+		tokenExpiry?: string;
+		apiConnectivity: string;
+	}> {
 		return EUOneAPIUtils.safeAPICall(async () => {
+			// Check token validity
 			const token = await EUOneAPIUtils.getAccessToken(env);
-			return { status: "OK - Authentication successful" };
+			
+			// Get token expiry info
+			const timeUntilExpiry = Math.max(0, tokenExpiry - Date.now());
+			const expiryMinutes = Math.round(timeUntilExpiry / 60000);
+			
+			// Test API connectivity with a simple product list call
+			let apiStatus = "OK";
+			try {
+				const testResponse = await fetch(
+					`${env.BASE_URL}/v2/product/product/list?pageNum=1&pageSize=1`,
+					{
+						method: "GET",
+						headers: {
+							Authorization: `Bearer ${token}`,
+							"Accept-Language": "en-US",
+							"Content-Type": "application/json",
+						},
+					}
+				);
+				
+				if (!testResponse.ok) {
+					apiStatus = `HTTP ${testResponse.status}`;
+				}
+			} catch (error) {
+				apiStatus = `Connection failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+			}
+			
+			return { 
+				status: "OK - Authentication successful",
+				tokenStatus: `Valid (expires in ${expiryMinutes} minutes)`,
+				tokenExpiry: new Date(tokenExpiry).toISOString(),
+				apiConnectivity: apiStatus
+			};
 		});
 	}
 
