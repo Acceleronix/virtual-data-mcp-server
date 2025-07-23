@@ -33,6 +33,8 @@ export default {
                 <ul>
                     <li><strong>Login Test:</strong> login_test - Test Acceleronix SaaS API authentication</li>
                     <li><strong>Get TSL Model:</strong> get_tsl_model - Get Thing Specification Language model by product key</li>
+                    <li><strong>Get Product List:</strong> get_product_list - Get list of products with optional filtering and pagination</li>
+                    <li><strong>Get Product List (Paginated):</strong> get_product_list_paginated - Get paginated list of products (15 items per page) with cursor navigation</li>
                     <li><strong>Get Device List:</strong> get_device_list - Get list of devices with optional filtering</li>
                     <li><strong>Report Device Data:</strong> report_device_data - Report device data using TSL model properties</li>
                 </ul>
