@@ -390,6 +390,35 @@ export class EUOneAPIUtils {
 			}
 
 			const result = (await response.json()) as any;
+			
+			// ===== COMPREHENSIVE API RESPONSE LOGGING =====
+			console.log("🔍 === COMPLETE PRODUCT LIST API RESPONSE ===");
+			console.log("📋 Full API Response (Pretty Print):");
+			console.log(JSON.stringify(result, null, 2));
+			console.log("🔢 Response Type:", typeof result);
+			console.log("📊 Response Keys:", result ? Object.keys(result) : "No keys");
+			console.log("📦 Data Structure Analysis:");
+			console.log("  - code:", result.code);
+			console.log("  - msg:", result.msg);
+			console.log("  - data type:", typeof result.data);
+			console.log("  - rows type:", typeof result.rows);
+			console.log("  - rows length:", result.rows?.length || "No rows");
+			console.log("  - total:", result.total);
+			
+			if (result.rows && Array.isArray(result.rows)) {
+				console.log("📋 Products Array Details:");
+				result.rows.forEach((product: any, index: number) => {
+					console.log(`  Product ${index + 1}:`);
+					console.log(`    - Keys: ${Object.keys(product)}`);
+					console.log(`    - Product Name: ${product.productName}`);
+					console.log(`    - Product Key: ${product.productKey}`);
+					console.log(`    - Product ID: ${product.productId}`);
+					console.log(`    - Full Product Data: ${JSON.stringify(product, null, 4)}`);
+				});
+			}
+			console.log("🔍 === END COMPLETE API RESPONSE ===");
+			// ===== END COMPREHENSIVE LOGGING =====
+			
 			console.log(
 				"📋 Product list success - received",
 				result.rows?.length || 0,

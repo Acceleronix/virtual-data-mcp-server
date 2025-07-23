@@ -608,6 +608,34 @@ export class VirtualDataMCP extends McpAgent {
 
 					const productData = await EUOneAPIUtils.getProductList(env, options);
 
+					// ===== COMPREHENSIVE API RESPONSE LOGGING (REGULAR TOOL) =====
+					console.log("🔍 === COMPLETE PRODUCT LIST API RESPONSE (REGULAR TOOL) ===");
+					console.log("📋 Full API Response (Pretty Print):");
+					console.log(JSON.stringify(productData, null, 2));
+					console.log("🔢 Response Type:", typeof productData);
+					console.log("📊 Response Keys:", productData ? Object.keys(productData) : "No keys");
+					console.log("📦 Data Structure Analysis:");
+					console.log("  - code:", productData.code);
+					console.log("  - msg:", productData.msg);
+					console.log("  - data type:", typeof productData.data);
+					console.log("  - rows type:", typeof productData.rows);
+					console.log("  - rows length:", productData.rows?.length || "No rows");
+					console.log("  - total:", productData.total);
+					
+					if (productData.rows && Array.isArray(productData.rows)) {
+						console.log("📋 Products Array Details:");
+						productData.rows.forEach((product: any, index: number) => {
+							console.log(`  Product ${index + 1}:`);
+							console.log(`    - Keys: ${Object.keys(product)}`);
+							console.log(`    - Product Name: ${product.productName}`);
+							console.log(`    - Product Key: ${product.productKey}`);
+							console.log(`    - Product ID: ${product.productId}`);
+							console.log(`    - Full Product Data: ${JSON.stringify(product, null, 4)}`);
+						});
+					}
+					console.log("🔍 === END COMPLETE API RESPONSE (REGULAR TOOL) ===");
+					// ===== END COMPREHENSIVE LOGGING =====
+
 					// Format the product list data for display
 					let responseText = `📋 Product List (Page ${options.pageNum || 1})\n\n`;
 
@@ -911,10 +939,34 @@ export class VirtualDataMCP extends McpAgent {
 					}
 
 					const productData = (await apiResponse.json()) as any;
-					console.log(
-						"📋 Full API response:",
-						JSON.stringify(productData, null, 2),
-					);
+					
+					// ===== COMPREHENSIVE API RESPONSE LOGGING =====
+					console.log("🔍 === COMPLETE PRODUCT LIST API RESPONSE (SERVER TOOL) ===");
+					console.log("📋 Full API Response (Pretty Print):");
+					console.log(JSON.stringify(productData, null, 2));
+					console.log("🔢 Response Type:", typeof productData);
+					console.log("📊 Response Keys:", productData ? Object.keys(productData) : "No keys");
+					console.log("📦 Data Structure Analysis:");
+					console.log("  - code:", productData.code);
+					console.log("  - msg:", productData.msg);
+					console.log("  - data type:", typeof productData.data);
+					console.log("  - rows type:", typeof productData.rows);
+					console.log("  - rows length:", productData.rows?.length || "No rows");
+					console.log("  - total:", productData.total);
+					
+					if (productData.rows && Array.isArray(productData.rows)) {
+						console.log("📋 Products Array Details:");
+						productData.rows.forEach((product: any, index: number) => {
+							console.log(`  Product ${index + 1}:`);
+							console.log(`    - Keys: ${Object.keys(product)}`);
+							console.log(`    - Product Name: ${product.productName}`);
+							console.log(`    - Product Key: ${product.productKey}`);
+							console.log(`    - Product ID: ${product.productId}`);
+							console.log(`    - Full Product Data: ${JSON.stringify(product, null, 4)}`);
+						});
+					}
+					console.log("🔍 === END COMPLETE API RESPONSE (SERVER TOOL) ===");
+					// ===== END COMPREHENSIVE LOGGING =====
 
 					// Format the simplified response
 					const products = productData.rows || [];
