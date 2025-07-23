@@ -195,16 +195,9 @@ export class VirtualDataMCP extends McpAgent {
 						const queryParams = new URLSearchParams();
 						queryParams.append("pageNum", String(options.pageNum));
 						queryParams.append("pageSize", String(options.pageSize));
-
-						// Add optional filters if provided
-						if (options.productName)
-							queryParams.append("productName", options.productName);
-						if (options.productKey)
-							queryParams.append("productKey", options.productKey);
-						if (typeof options.releaseStatus === "number")
-							queryParams.append("releaseStatus", String(options.releaseStatus));
-						if (options.searchValue)
-							queryParams.append("searchValue", options.searchValue);
+						
+						// FIX: Only pass pageNum and pageSize as per user specification
+						// Removed optional filters that may cause 403 errors
 
 						const apiUrl = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
 						console.log("📋 API URL:", apiUrl);
@@ -212,7 +205,7 @@ export class VirtualDataMCP extends McpAgent {
 						const apiResponse = await fetch(apiUrl, {
 							method: "GET",
 							headers: {
-								Authorization: `Bearer ${token}`,
+								Authorization: token,  // FIX: Direct token, no "Bearer " prefix
 								"Accept-Language": "en-US",
 								"Content-Type": "application/json",
 							},

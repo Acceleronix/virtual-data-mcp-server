@@ -428,16 +428,9 @@ export class EUOneAPIUtils {
 
 			queryParams.append("pageNum", pageNum);
 			queryParams.append("pageSize", pageSize);
-
-			// Add optional filters if provided
-			if (options.productName)
-				queryParams.append("productName", options.productName);
-			if (options.productKey)
-				queryParams.append("productKey", options.productKey);
-			if (typeof options.releaseStatus === "number")
-				queryParams.append("releaseStatus", String(options.releaseStatus));
-			if (options.searchValue)
-				queryParams.append("searchValue", options.searchValue);
+			
+			// FIX: Only pass pageNum and pageSize as per user specification
+			// Removed optional filters that may cause 403 errors
 
 			const url = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
 			console.log("📝 Simplified product list request URL:", url);
@@ -445,8 +438,8 @@ export class EUOneAPIUtils {
 			const response = await fetch(url, {
 				method: "GET",
 				headers: {
-					Authorization: `Bearer ${token}`, // As per API playground
-					"Accept-Language": "en-US", // As per API playground
+					Authorization: token, // FIX: Direct token, no "Bearer " prefix
+					"Accept-Language": "en-US",
 					"Content-Type": "application/json",
 				},
 			});
