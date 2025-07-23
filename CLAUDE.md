@@ -88,3 +88,20 @@ npx wrangler secret put ACCESS_SECRET
 - Cursor-based pagination for large IoT datasets
 - TSL (Thing Specification Language) support for device capabilities
 - Real-time device control and monitoring capabilities
+
+## GitHub Configuration
+
+To push changes to the GitHub repository, use the `acc_github` SSH key:
+
+```bash
+# Configure SSH key for GitHub access
+ssh-add ~/.ssh/acc_github
+
+# Verify SSH connection to GitHub
+ssh -T git@github.com
+
+# Push changes to remote repository
+git push origin main
+```
+
+The repository is configured to use SSH authentication with the Acceleronix organization account.
