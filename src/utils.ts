@@ -212,19 +212,29 @@ export class EUOneAPIUtils {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				
-				// Enhanced error detection for authentication/session issues
+				// FIXED: More precise error detection for authentication/session issues
 				const isAuthError = (
+					// Exact session timeout messages
 					errorMessage.includes("Session timed out") ||
 					errorMessage.includes("session timeout") ||
-					errorMessage.includes("401") ||
-					errorMessage.includes("Unauthorized") ||
-					errorMessage.includes("token") ||
-					errorMessage.includes("auth") ||
-					errorMessage.includes("expired") ||
-					// Check for common HTTP auth status codes
+					errorMessage.includes("login again") ||
+					// HTTP status codes - be specific
 					errorMessage.includes("HTTP 401") ||
-					errorMessage.includes("HTTP 403")
+					errorMessage.includes("HTTP 403") ||
+					// Exact API error codes
+					errorMessage.includes("401") && errorMessage.includes("Unauthorized") ||
+					// Specific token errors (not generic "auth" or "token")
+					errorMessage.includes("access token expired") ||
+					errorMessage.includes("token invalid") ||
+					errorMessage.includes("authentication failed")
 				);
+
+				console.log(`🔍 Error analysis: isAuthError=${isAuthError}, message="${errorMessage}"`);
+				
+				// Add detailed error logging for debugging
+				if (!isAuthError) {
+					console.log("ℹ️ Not treating as auth error - will not retry");
+				}
 
 				// Only retry on authentication errors and if we haven't exceeded max retries
 				if (isAuthError && retryCount < maxRetries) {
@@ -417,7 +427,10 @@ export class EUOneAPIUtils {
 	): Promise<any> {
 		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
 			console.log("🔐 Using token for product list (length):", token.length);
+			console.log("🔐 Token preview:", token.substring(0, 20) + "...");
 			console.log("⏰ Request time:", new Date().toISOString());
+			console.log("⏰ Cached token expiry:", new Date(tokenExpiry).toISOString());
+			console.log("⏰ Time until expiry (minutes):", Math.round((tokenExpiry - Date.now()) / 60000));
 
 			// Build query parameters - only core parameters
 			const queryParams = new URLSearchParams();
@@ -452,11 +465,19 @@ export class EUOneAPIUtils {
 			});
 
 			console.log("📡 Product list response status:", response.status);
+			console.log("📡 Response headers:", JSON.stringify([...response.headers.entries()]));
 
 			if (!response.ok) {
 				const errorText = await response.text();
 				console.error("❌ Product list HTTP error response:", errorText);
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+				console.error("❌ Full response details:", {
+					status: response.status,
+					statusText: response.statusText,
+					headers: [...response.headers.entries()],
+					body: errorText,
+					url: response.url
+				});
+				throw new Error(`API call failed: HTTP ${response.status} - ${errorText}`);
 			}
 
 			const result = (await response.json()) as any;
@@ -496,7 +517,12 @@ export class EUOneAPIUtils {
 			);
 
 			if (result.code !== 200) {
-				throw new Error(`API call failed: ${result.msg || "Unknown error"}`);
+				console.error("❌ API returned error code:", {
+					code: result.code,
+					msg: result.msg,
+					fullResponse: result
+				});
+				throw new Error(`API call failed: Code ${result.code} - ${result.msg || "Unknown error"}`);
 			}
 
 			return result;
