@@ -14,6 +14,153 @@ export class VirtualDataMCP extends McpAgent {
 		version: "2.0.0",
 	});
 
+	// Instance-level token cache to ensure token sharing across tool calls
+	private accessToken: string | null = null;
+	private tokenExpiry: number = 0;
+
+	// Instance-level token management to avoid Durable Object isolation issues
+	private async getAccessToken(env: EUOneEnvironment): Promise<string> {
+		// Check if we have a valid cached token (with 120 second buffer for safety)
+		const bufferTime = 120 * 1000; // 120 seconds for better safety margin
+		if (this.accessToken && Date.now() < this.tokenExpiry - bufferTime) {
+			console.log("🔄 Using instance cached access token (expires in", Math.round((this.tokenExpiry - Date.now()) / 1000), "seconds)");
+			return this.accessToken;
+		}
+
+		console.log("🔐 Access token expired or missing - requesting new token");
+
+		// Generate authentication parameters exactly matching API Playground format
+		const timestamp = Date.now().toString(); // Convert to string like API Playground
+		const passwordPlain = `${env.APP_ID}${env.INDUSTRY_CODE}${timestamp}${env.APP_SECRET}`;
+
+		console.log("🔍 Debug authentication generation:");
+		console.log(`   APP_ID: ${env.APP_ID}`);
+		console.log(`   INDUSTRY_CODE: ${env.INDUSTRY_CODE}`);
+		console.log(`   timestamp: ${timestamp}`);
+		console.log(`   passwordPlain: ${passwordPlain}`);
+
+		// Create SHA-256 hash for password using optimized approach
+		const encoder = new TextEncoder();
+		const data = encoder.encode(passwordPlain);
+		const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+		const hashArray = Array.from(new Uint8Array(hashBuffer));
+		const password = hashArray
+			.map((b) => b.toString(16).padStart(2, "0"))
+			.join("");
+
+		console.log(`   Generated password hash: ${password}`);
+
+		// Login request payload (matching API Playground exactly)
+		const payload = {
+			appId: env.APP_ID,
+			industryCode: env.INDUSTRY_CODE,
+			timestamp: timestamp, // String format like API Playground
+			password: password,
+		};
+
+		console.log("Login payload:", JSON.stringify(payload, null, 2));
+
+		try {
+			const response = await fetch(
+				`${env.BASE_URL}/v2/sysuser/openapi/ent/v3/login/pwdAuth`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify(payload),
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+			}
+
+			const data = (await response.json()) as any;
+			console.log("Auth response:", JSON.stringify(data, null, 2));
+
+			if (data.code !== 200) {
+				throw new Error(
+					`Authentication failed: ${data.msg || "Unknown error"}`,
+				);
+			}
+
+			if (!data.data || !data.data.accessToken) {
+				throw new Error(
+					`Invalid authentication response: ${JSON.stringify(data)}`,
+				);
+			}
+
+			this.accessToken = data.data.accessToken;
+
+			if (!this.accessToken) {
+				throw new Error("No access token received from API");
+			}
+
+			// Parse expiry time from string to number with enhanced error handling
+			const expiresIn = parseInt(data.data.accessTokenExpireIn || "3600");
+			// Set expiry to 1 hour from now (tokens typically last longer)
+			this.tokenExpiry = Date.now() + expiresIn * 1000;
+
+			console.log(
+				`✅ New access token obtained, expires in ${expiresIn} seconds`,
+			);
+
+			return this.accessToken!;
+		} catch (error) {
+			console.error("API Error:", error);
+			throw new Error("Failed to get access token");
+		}
+	}
+
+	// Instance-level API call with automatic token refresh
+	private async safeAPICallWithTokenRefresh<T>(
+		env: EUOneEnvironment,
+		apiCall: (token: string) => Promise<T>,
+	): Promise<T> {
+		try {
+			// Get token from instance cache
+			const token = await this.getAccessToken(env);
+			return await apiCall(token);
+		} catch (error) {
+			// Check if it's a session timeout error
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			const isSessionTimeout =
+				errorMessage.includes("Session timed out") ||
+				errorMessage.includes("session timeout") ||
+				errorMessage.includes("401") ||
+				errorMessage.includes("Unauthorized");
+
+			if (isSessionTimeout) {
+				console.log(
+					"🔄 Session timeout/auth error detected, forcing token refresh and retrying...",
+				);
+				console.log("🔍 Error details:", errorMessage);
+
+				// Clear instance cached token and get new one
+				this.accessToken = null;
+				this.tokenExpiry = 0;
+
+				try {
+					const newToken = await this.getAccessToken(env);
+					console.log("🔐 Retrying API call with new token");
+
+					// Retry the API call with new token
+					return await apiCall(newToken);
+				} catch (retryError) {
+					console.error("❌ Retry failed:", retryError);
+					throw new Error(
+						`Retry API call failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+					);
+				}
+			}
+
+			// Re-throw other errors
+			throw error;
+		}
+	}
+
 	async init() {
 		console.log("🚀 MCP Server starting initialization...");
 		const env = this.env as unknown as EUOneEnvironment;
@@ -63,7 +210,7 @@ export class VirtualDataMCP extends McpAgent {
 		if (env.BASE_URL && env.APP_ID && env.APP_SECRET && env.INDUSTRY_CODE) {
 			try {
 				console.log("🔐 Attempting automatic login...");
-				await EUOneAPIUtils.ensureValidToken(env);
+				await this.getAccessToken(env);
 				console.log("✅ Auto-login successful - MCP server ready with authentication");
 			} catch (error) {
 				console.error("❌ Auto-login failed during initialization:", error);
@@ -87,12 +234,12 @@ export class VirtualDataMCP extends McpAgent {
 			{},
 			async () => {
 				try {
-					const health = await EUOneAPIUtils.healthCheck(env);
+					const token = await this.getAccessToken(env);
 					return {
 						content: [
 							{
 								type: "text",
-								text: `✅ Acceleronix SaaS API Login Test: ${health.status}`,
+								text: `✅ Acceleronix SaaS API Login Test: OK - Authentication successful`,
 							},
 						],
 					};
@@ -632,35 +779,84 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(options, null, 2),
 					);
 
-					const productData = await EUOneAPIUtils.getProductList(env, options);
+					const productData = await this.safeAPICallWithTokenRefresh(env, async (token) => {
+						// Build query parameters - only core parameters
+						const queryParams = new URLSearchParams();
 
-					// ===== COMPREHENSIVE API RESPONSE LOGGING (REGULAR TOOL) =====
-					console.log("🔍 === COMPLETE PRODUCT LIST API RESPONSE (REGULAR TOOL) ===");
-					console.log("📋 Full API Response (Pretty Print):");
-					console.log(JSON.stringify(productData, null, 2));
-					console.log("🔢 Response Type:", typeof productData);
-					console.log("📊 Response Keys:", productData ? Object.keys(productData) : "No keys");
-					console.log("📦 Data Structure Analysis:");
-					console.log("  - code:", productData.code);
-					console.log("  - msg:", productData.msg);
-					console.log("  - data type:", typeof productData.data);
-					console.log("  - rows type:", typeof productData.rows);
-					console.log("  - rows length:", productData.rows?.length || "No rows");
-					console.log("  - total:", productData.total);
-					
-					if (productData.rows && Array.isArray(productData.rows)) {
-						console.log("📋 Products Array Details:");
-						productData.rows.forEach((product: any, index: number) => {
-							console.log(`  Product ${index + 1}:`);
-							console.log(`    - Keys: ${Object.keys(product)}`);
-							console.log(`    - Product Name: ${product.productName}`);
-							console.log(`    - Product Key: ${product.productKey}`);
-							console.log(`    - Product ID: ${product.productId}`);
-							console.log(`    - Full Product Data: ${JSON.stringify(product, null, 4)}`);
+						// Set pagination parameters (using API playground tested values)
+						const pageNum = options.pageNum ? String(options.pageNum) : "1";
+						const pageSize = options.pageSize ? String(options.pageSize) : "12"; // Default to 12 as per original design
+
+						queryParams.append("pageNum", pageNum);
+						queryParams.append("pageSize", pageSize);
+
+						// Add optional filters if provided
+						if (options.productName)
+							queryParams.append("productName", options.productName);
+						if (options.productKey)
+							queryParams.append("productKey", options.productKey);
+						if (typeof options.releaseStatus === "number")
+							queryParams.append("releaseStatus", String(options.releaseStatus));
+						if (options.searchValue)
+							queryParams.append("searchValue", options.searchValue);
+
+						const url = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
+						console.log("📝 Product list request URL:", url);
+
+						const response = await fetch(url, {
+							method: "GET",
+							headers: {
+								Authorization: `Bearer ${token}`,
+								"Accept-Language": "en-US",
+								"Content-Type": "application/json",
+							},
 						});
-					}
-					console.log("🔍 === END COMPLETE API RESPONSE (REGULAR TOOL) ===");
-					// ===== END COMPREHENSIVE LOGGING =====
+
+						console.log("📡 Product list response status:", response.status);
+
+						if (!response.ok) {
+							const errorText = await response.text();
+							console.error("❌ Product list HTTP error response:", errorText);
+							throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+						}
+
+						const result = (await response.json()) as any;
+						
+						// ===== COMPREHENSIVE API RESPONSE LOGGING =====
+						console.log("🔍 === COMPLETE PRODUCT LIST API RESPONSE (INSTANCE METHOD) ===");
+						console.log("📋 Full API Response (Pretty Print):");
+						console.log(JSON.stringify(result, null, 2));
+						console.log("🔢 Response Type:", typeof result);
+						console.log("📊 Response Keys:", result ? Object.keys(result) : "No keys");
+						console.log("📦 Data Structure Analysis:");
+						console.log("  - code:", result.code);
+						console.log("  - msg:", result.msg);
+						console.log("  - data type:", typeof result.data);
+						console.log("  - rows type:", typeof result.rows);
+						console.log("  - rows length:", result.rows?.length || "No rows");
+						console.log("  - total:", result.total);
+						
+						if (result.rows && Array.isArray(result.rows)) {
+							console.log("📋 Products Array Details:");
+							result.rows.forEach((product: any, index: number) => {
+								console.log(`  Product ${index + 1}:`);
+								console.log(`    - Keys: ${Object.keys(product)}`);
+								console.log(`    - Product Name: ${product.productName}`);
+								console.log(`    - Product Key: ${product.productKey}`);
+								console.log(`    - Product ID: ${product.productId}`);
+								console.log(`    - Full Product Data: ${JSON.stringify(product, null, 4)}`);
+							});
+						}
+						console.log("🔍 === END COMPLETE API RESPONSE (INSTANCE METHOD) ===");
+						// ===== END COMPREHENSIVE LOGGING =====
+
+						if (result.code !== 200) {
+							throw new Error(`API call failed: ${result.msg || "Unknown error"}`);
+						}
+
+						return result;
+					});
+
 
 					// Format the product list data for display
 					let responseText = `📋 Product List (Page ${options.pageNum || 1})\n\n`;
