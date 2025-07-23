@@ -327,11 +327,21 @@ export class VirtualDataMCP extends McpAgent {
 
 					// Use instance-level token management
 					const productData = await this.safeAPICallWithTokenRefresh(env, async (token) => {
-						console.log("🔐 Using instance token for paginated product list");
+						console.log("🔐 Using instance token for product list");
 
 						const queryParams = new URLSearchParams();
-						queryParams.append("pageNum", String(pageNo));
-						queryParams.append("pageSize", String(pageSize));
+						queryParams.append("pageNum", String(options.pageNum));
+						queryParams.append("pageSize", String(options.pageSize));
+
+						// Add optional filters if provided
+						if (options.productName)
+							queryParams.append("productName", options.productName);
+						if (options.productKey)
+							queryParams.append("productKey", options.productKey);
+						if (typeof options.releaseStatus === "number")
+							queryParams.append("releaseStatus", String(options.releaseStatus));
+						if (options.searchValue)
+							queryParams.append("searchValue", options.searchValue);
 
 						const apiUrl = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
 						console.log("📋 API URL:", apiUrl);
@@ -358,7 +368,7 @@ export class VirtualDataMCP extends McpAgent {
 						const result = (await apiResponse.json()) as any;
 						
 						// ===== COMPREHENSIVE API RESPONSE LOGGING =====
-						console.log("🔍 === COMPLETE PRODUCT LIST API RESPONSE (PAGINATED TOOL) ===");
+						console.log("🔍 === COMPLETE PRODUCT LIST API RESPONSE ===");
 						console.log("📋 Full API Response (Pretty Print):");
 						console.log(JSON.stringify(result, null, 2));
 						console.log("🔢 Response Type:", typeof result);
@@ -382,7 +392,7 @@ export class VirtualDataMCP extends McpAgent {
 								console.log(`    - Full Product Data: ${JSON.stringify(product, null, 4)}`);
 							});
 						}
-						console.log("🔍 === END COMPLETE API RESPONSE (PAGINATED TOOL) ===");
+						console.log("🔍 === END COMPLETE API RESPONSE ===");
 						// ===== END COMPREHENSIVE LOGGING =====
 
 						if (result.code !== 200) {
