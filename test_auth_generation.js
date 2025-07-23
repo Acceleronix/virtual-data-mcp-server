@@ -19,12 +19,22 @@ async function testAuthGeneration() {
 	console.log(`   timestamp: ${timestamp}`);
 	console.log(`   expected password: ${expectedPassword}`);
 
-	// Common APP_SECRET values to test (you may need to provide the actual secret)
+	// Let me try to reverse engineer the secret from your successful parameters
+	// passwordPlain format: appId + industryCode + timestamp + secret
+	// We know: d67fe08dbf174acebbc7352bb1321f12 + eam + 1753269917074 + SECRET = hash to 30cbc20100d77ff9a029698b67bf43393c2e814f829da6d8ab1f8c8df7c9739e
+	
+	// Test with the actual APP_SECRET provided by user
+	const actualSecret = "7c0c06547bafe4d9df8719d1d39d8f3407943c912a1c5b1f894a502f6378e46e";
 	const possibleSecrets = [
-		// Add potential secrets here
-		"your_app_secret_here",
-		// Add more if needed
+		actualSecret,
+		// Also test some variations just in case
+		actualSecret.toUpperCase(),
+		actualSecret.toLowerCase(),
 	];
+	
+	console.log("\n🔍 Trying to reverse engineer the secret...");	
+	console.log("If none match, you need to provide the actual APP_SECRET from your environment.");
+	console.log("Check your Cloudflare Workers environment variables or your API credentials.");
 
 	for (const secret of possibleSecrets) {
 		const passwordPlain = `${appId}${industryCode}${timestamp}${secret}`;

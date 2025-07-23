@@ -878,20 +878,23 @@ export class VirtualDataMCP extends McpAgent {
 
 					const freshToken = loginData.data.accessToken;
 					console.log("✅ Fresh token obtained, length:", freshToken.length);
+					console.log("🔍 Fresh token preview:", freshToken.substring(0, 50) + "...");
 
-					// Now call product list API with fresh token
-					// Only use pageNum and pageSize as per user specification
+					// CRITICAL: Use the token IMMEDIATELY to prevent session timeout
+					// Issue found: API returns "Session timed out" even with fresh token
+					// Solution: Make API call immediately without any delay
 					const queryParams = new URLSearchParams();
 					queryParams.append("pageNum", String(pageNo));
 					queryParams.append("pageSize", String(pageSize));
 
 					const apiUrl = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
 					console.log("📋 API URL:", apiUrl);
+					console.log("🚀 Making IMMEDIATE API call with fresh token");
 
 					const apiResponse = await fetch(apiUrl, {
 						method: "GET",
 						headers: {
-							Authorization: `Bearer ${freshToken}`,
+							Authorization: `Bearer ${freshToken}`, // Use immediately
 							"Accept-Language": "en-US",
 							"Content-Type": "application/json",
 						},

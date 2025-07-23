@@ -34,9 +34,12 @@ export function decodeCursor(cursorStr: string): PaginationCursor {
 
 export class EUOneAPIUtils {
 	static async getAccessToken(env: EUOneEnvironment): Promise<string> {
+		// FORCE TOKEN REFRESH - disable caching temporarily to test new APP_SECRET
 		// Check if we have a valid cached token (with 120 second buffer for safety)
 		const bufferTime = 120 * 1000; // 120 seconds for better safety margin
-		if (accessToken && Date.now() < tokenExpiry - bufferTime) {
+		console.log("🔄 FORCING TOKEN REFRESH - ignoring cache to test new APP_SECRET");
+		// Temporarily disable: if (accessToken && Date.now() < tokenExpiry - bufferTime)
+		if (false && accessToken && Date.now() < tokenExpiry - bufferTime) {
 			console.log("🔄 Using cached access token");
 			return accessToken;
 		}
