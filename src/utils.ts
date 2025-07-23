@@ -425,7 +425,9 @@ export class EUOneAPIUtils {
 			searchValue?: string;
 		} = {},
 	): Promise<any> {
-		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
+		// FIX: Use simple API call like health_check to avoid retry issues
+		return EUOneAPIUtils.safeAPICall(async () => {
+			const token = await EUOneAPIUtils.getAccessToken(env);
 			console.log("🔐 Using token for product list (length):", token.length);
 			console.log("🔐 Token preview:", token.substring(0, 20) + "...");
 			console.log("⏰ Request time:", new Date().toISOString());
