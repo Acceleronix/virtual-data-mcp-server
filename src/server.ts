@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export class VirtualDataMCP extends McpAgent {
 	server = new McpServer({
-		name: "EUOne IoT MCP Server",
+		name: "Acceleronix SaaS IoT MCP Server",
 		version: "2.0.0",
 	});
 
@@ -14,7 +14,7 @@ export class VirtualDataMCP extends McpAgent {
 
 		// Validate environment variables
 		if (!env.BASE_URL || !env.APP_ID || !env.APP_SECRET || !env.INDUSTRY_CODE) {
-			throw new Error("Missing required EUOne API environment variables: BASE_URL, APP_ID, APP_SECRET, INDUSTRY_CODE");
+			throw new Error("Missing required Acceleronix SaaS API environment variables: BASE_URL, APP_ID, APP_SECRET, INDUSTRY_CODE");
 		}
 
 		// Auto-login on server initialization
@@ -45,7 +45,7 @@ export class VirtualDataMCP extends McpAgent {
 	private addHealthCheckTool(env: EUOneEnvironment) {
 		this.server.tool(
 			"login_test",
-			"Test EUOne API login and authentication status",
+			"Test Acceleronix SaaS API login and authentication status",
 			{},
 			async () => {
 				try {
@@ -54,7 +54,7 @@ export class VirtualDataMCP extends McpAgent {
 						content: [
 							{
 								type: "text",
-								text: `✅ EUOne API Login Test: ${health.status}`,
+								text: `✅ Acceleronix SaaS API Login Test: ${health.status}`,
 							},
 						],
 					};
@@ -63,7 +63,7 @@ export class VirtualDataMCP extends McpAgent {
 						content: [
 							{
 								type: "text",
-								text: `❌ EUOne API Login Test Failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+								text: `❌ Acceleronix SaaS API Login Test Failed: ${error instanceof Error ? error.message : "Unknown error"}`,
 							},
 						],
 					};

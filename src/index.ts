@@ -21,7 +21,7 @@ export default {
 		if (url.pathname === "/") {
 			return new Response(
 				`
-                <h1>EUOne IoT MCP Server</h1>
+                <h1>Acceleronix SaaS IoT MCP Server</h1>
                 <p>Acceleronix Platform Virtual Device MCP server</p>
                 <p>MCP SSE Endpoint: /sse</p>
                 <p>MCP HTTP Endpoint: /mcp</p>
@@ -31,7 +31,7 @@ export default {
                 <br>
                 <h2>Available Tools:</h2>
                 <ul>
-                    <li><strong>Login Test:</strong> login_test - Test EUOne API authentication</li>
+                    <li><strong>Login Test:</strong> login_test - Test Acceleronix SaaS API authentication</li>
                     <li><strong>Get TSL Model:</strong> get_tsl_model - Get Thing Specification Language model by product key</li>
                     <li><strong>Get Device List:</strong> get_device_list - Get list of devices with optional filtering</li>
                     <li><strong>Report Device Data:</strong> report_device_data - Report device data using TSL model properties</li>
@@ -39,7 +39,7 @@ export default {
                 <br>
                 <h3>Environment Variables Required:</h3>
                 <ul>
-                    <li>BASE_URL - EUOne API base URL</li>
+                    <li>BASE_URL - Acceleronix SaaS API base URL</li>
                     <li>APP_ID - Application ID for authentication</li>
                     <li>APP_SECRET - Application secret for authentication</li>
                     <li>INDUSTRY_CODE - Industry code (e.g., "eam")</li>
