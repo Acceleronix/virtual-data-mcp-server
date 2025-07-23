@@ -780,8 +780,8 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(args, null, 2),
 					);
 
-					const DEFAULT_PAGE_SIZE = 40;  // Match API Playground exactly
-					let pageNo = 1;                 // Match API Playground exactly
+					const DEFAULT_PAGE_SIZE = 40; // Match API Playground exactly
+					let pageNo = 1; // Match API Playground exactly
 					let pageSize = DEFAULT_PAGE_SIZE;
 
 					// Parse cursor if provided
@@ -790,7 +790,9 @@ export class VirtualDataMCP extends McpAgent {
 							const cursorData = decodeCursor(args.cursor);
 							pageNo = cursorData.pageNo;
 							pageSize = cursorData.pageSize || DEFAULT_PAGE_SIZE;
-							console.log(`📄 Cursor decoded: page ${pageNo}, size ${pageSize}`);
+							console.log(
+								`📄 Cursor decoded: page ${pageNo}, size ${pageSize}`,
+							);
 						} catch (error) {
 							throw new Error("Invalid cursor format");
 						}
@@ -800,23 +802,29 @@ export class VirtualDataMCP extends McpAgent {
 					const options = {
 						pageNum: pageNo,
 						pageSize: pageSize,
-						...(args && typeof args === "object" && {
-							...(args.productName && { productName: args.productName }),
-							...(args.productKey && { productKey: args.productKey }),
-							...(typeof args.releaseStatus === "number" && { releaseStatus: args.releaseStatus }),
-							...(args.searchValue && { searchValue: args.searchValue }),
-						}),
+						...(args &&
+							typeof args === "object" && {
+								...(args.productName && { productName: args.productName }),
+								...(args.productKey && { productKey: args.productKey }),
+								...(typeof args.releaseStatus === "number" && {
+									releaseStatus: args.releaseStatus,
+								}),
+								...(args.searchValue && { searchValue: args.searchValue }),
+							}),
 					};
 
-					console.log("📋 API request options:", JSON.stringify(options, null, 2));
+					console.log(
+						"📋 API request options:",
+						JSON.stringify(options, null, 2),
+					);
 
 					// Force clear any cached tokens and get completely fresh authentication
 					console.log("🔑 Forcing complete authentication refresh...");
-					
+
 					// Generate authentication parameters directly
 					const timestamp = Date.now();
 					const passwordPlain = `${env.APP_ID}${env.INDUSTRY_CODE}${timestamp}${env.APP_SECRET}`;
-					
+
 					// Create SHA-256 hash for password
 					const passwordBuffer = await crypto.subtle.digest(
 						"SHA-256",
@@ -855,7 +863,9 @@ export class VirtualDataMCP extends McpAgent {
 					console.log("🔐 Login response code:", loginData.code);
 
 					if (loginData.code !== 200) {
-						throw new Error(`Authentication failed: ${loginData.msg || "Unknown error"}`);
+						throw new Error(
+							`Authentication failed: ${loginData.msg || "Unknown error"}`,
+						);
 					}
 
 					const freshToken = loginData.data.accessToken;
@@ -884,17 +894,28 @@ export class VirtualDataMCP extends McpAgent {
 					if (!apiResponse.ok) {
 						const errorText = await apiResponse.text();
 						console.error("❌ API error response:", errorText);
-						throw new Error(`API call failed: ${apiResponse.status} - ${errorText}`);
+						throw new Error(
+							`API call failed: ${apiResponse.status} - ${errorText}`,
+						);
 					}
 
 					const productData = (await apiResponse.json()) as any;
-					console.log("📋 Full API response:", JSON.stringify(productData, null, 2));
+					console.log(
+						"📋 Full API response:",
+						JSON.stringify(productData, null, 2),
+					);
 
 					// Format the simplified response
 					const products = productData.rows || [];
 					const total = productData.total || 0;
-					
-					console.log("✅ Successfully retrieved", products.length, "products out of", total, "total");
+
+					console.log(
+						"✅ Successfully retrieved",
+						products.length,
+						"products out of",
+						total,
+						"total",
+					);
 
 					let responseText = `📋 **Product List Summary**\n`;
 					responseText += `Page ${pageNo} of ${Math.ceil(total / pageSize)} | ${pageSize} items per page | ${total} total products\n`;
@@ -911,16 +932,20 @@ export class VirtualDataMCP extends McpAgent {
 
 							// Status with emojis
 							const statusEmoji = product.releaseStatus === 1 ? "✅" : "⏸️";
-							const statusText = product.releaseStatus === 1 ? "Published" : "Unpublished";
+							const statusText =
+								product.releaseStatus === 1 ? "Published" : "Unpublished";
 							responseText += `   ${statusEmoji} Status: ${statusText}\n`;
 
 							// Access type
 							const accessEmoji = product.accessType === 1 ? "🔒" : "🌐";
-							const accessText = product.accessType === 1 ? "Private" : "Public";
+							const accessText =
+								product.accessType === 1 ? "Private" : "Public";
 							responseText += `   ${accessEmoji} Access: ${accessText}\n`;
 
 							if (product.createTime) {
-								const createTime = new Date(product.createTime).toLocaleDateString();
+								const createTime = new Date(
+									product.createTime,
+								).toLocaleDateString();
 								responseText += `   📅 Created: ${createTime}\n`;
 							}
 
@@ -929,7 +954,7 @@ export class VirtualDataMCP extends McpAgent {
 
 						// Pagination navigation
 						const hasMorePages = pageNo * pageSize < total;
-						
+
 						if (hasMorePages) {
 							const nextCursor = encodeCursor({
 								pageNo: pageNo + 1,
@@ -941,8 +966,8 @@ export class VirtualDataMCP extends McpAgent {
 							responseText += `Use cursor: \`${nextCursor}\`\n`;
 							responseText += `Call this tool again with the cursor parameter to get page ${pageNo + 1}.\n\n`;
 						}
-						
-						responseText += `🎯 **Summary**: Showing ${products.length} products (${((pageNo - 1) * pageSize + 1)} - ${Math.min(pageNo * pageSize, total)} of ${total})\n`;
+
+						responseText += `🎯 **Summary**: Showing ${products.length} products (${(pageNo - 1) * pageSize + 1} - ${Math.min(pageNo * pageSize, total)} of ${total})\n`;
 					}
 
 					return {
