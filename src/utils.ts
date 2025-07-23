@@ -134,6 +134,23 @@ export class EUOneAPIUtils {
 		}
 	}
 
+	// Force get fresh token (always clears cache and gets new token)
+	static async getFreshToken(env: EUOneEnvironment): Promise<string> {
+		console.log("🔄 Forcing fresh token acquisition - clearing cache");
+		// Clear cached token to force fresh authentication
+		accessToken = null;
+		tokenExpiry = 0;
+		
+		try {
+			const token = await EUOneAPIUtils.getAccessToken(env);
+			console.log("✅ Fresh token acquired successfully");
+			return token;
+		} catch (error) {
+			console.error("❌ Fresh token acquisition failed:", error);
+			throw new Error(`Authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
 	// Enhanced API call with automatic token refresh on session timeout
 	static async safeAPICallWithTokenRefresh<T>(
 		env: EUOneEnvironment,
@@ -339,6 +356,73 @@ export class EUOneAPIUtils {
 		});
 	}
 
+	// Simplified product list method focused on pagination (based on API playground results)
+	static async getProductListPaginated(
+		env: EUOneEnvironment,
+		options: {
+			pageNum?: number;
+			pageSize?: number;
+			productName?: string;
+			productKey?: string;
+			releaseStatus?: number;
+			searchValue?: string;
+		} = {},
+	): Promise<any> {
+		console.log("🚀 Getting fresh token for product list request...");
+		
+		// Always get fresh token for each request (as per user suggestion)
+		const token = await EUOneAPIUtils.getFreshToken(env);
+		
+		console.log("🔐 Using fresh token for product list (length):", token.length);
+		console.log("⏰ Request time:", new Date().toISOString());
+
+		// Build query parameters - only core parameters
+		const queryParams = new URLSearchParams();
+		
+		// Set pagination parameters (using API playground tested values)
+		const pageNum = options.pageNum ? String(options.pageNum) : "1";
+		const pageSize = options.pageSize ? String(options.pageSize) : "15"; // Default to 15 as per tool design
+		
+		queryParams.append("pageNum", pageNum);
+		queryParams.append("pageSize", pageSize);
+
+		// Add optional filters if provided
+		if (options.productName) queryParams.append("productName", options.productName);
+		if (options.productKey) queryParams.append("productKey", options.productKey);
+		if (typeof options.releaseStatus === "number") queryParams.append("releaseStatus", String(options.releaseStatus));
+		if (options.searchValue) queryParams.append("searchValue", options.searchValue);
+
+		const url = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
+		console.log("📝 Simplified product list request URL:", url);
+
+		const response = await fetch(url, {
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${token}`,  // As per API playground
+				"Accept-Language": "en-US",        // As per API playground  
+				"Content-Type": "application/json",
+			},
+		});
+
+		console.log("📡 Product list response status:", response.status);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error("❌ Product list HTTP error response:", errorText);
+			throw new Error(`API call failed: ${response.status} - ${errorText}`);
+		}
+
+		const result = (await response.json()) as any;
+		console.log("📋 Product list success - received", result.rows?.length || 0, "products");
+
+		if (result.code !== 200) {
+			throw new Error(`API call failed: ${result.msg || "Unknown error"}`);
+		}
+
+		return result;
+	}
+
+	// Keep original method for backward compatibility
 	static async getProductList(
 		env: EUOneEnvironment,
 		options: {
@@ -367,110 +451,14 @@ export class EUOneAPIUtils {
 			pageSize?: string | number;
 		} = {},
 	): Promise<any> {
-		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
-			console.log("🔐 Using token for product list (length):", token.length);
-			console.log(
-				"⏰ Token expiry check - current time:",
-				new Date().toISOString(),
-			);
-			console.log("⏰ Token expires at:", new Date(tokenExpiry).toISOString());
-			console.log(
-				"⏰ Time until expiry (minutes):",
-				Math.round((tokenExpiry - Date.now()) / 60000),
-			);
-
-			// Build query parameters
-			const queryParams = new URLSearchParams();
-
-			// Set default values for pagination
-			const pageNum = options.pageNum ? String(options.pageNum) : "1";
-			const pageSize = options.pageSize ? String(options.pageSize) : "12";
-
-			queryParams.append("pageNum", pageNum);
-			queryParams.append("pageSize", pageSize);
-
-			// Add optional parameters if provided
-			if (options.accessType !== undefined)
-				queryParams.append("accessType", String(options.accessType));
-			if (options.connProtocol !== undefined)
-				queryParams.append("connProtocol", String(options.connProtocol));
-			if (options.createBy) queryParams.append("createBy", options.createBy);
-			if (options.createTime)
-				queryParams.append("createTime", options.createTime);
-			if (options.createUserId !== undefined)
-				queryParams.append("createUserId", String(options.createUserId));
-			if (options.dataFormat !== undefined)
-				queryParams.append("dataFormat", String(options.dataFormat));
-			if (options.industrySceneCode)
-				queryParams.append("industrySceneCode", options.industrySceneCode);
-			if (options.industrySceneId !== undefined)
-				queryParams.append("industrySceneId", String(options.industrySceneId));
-			if (options.netWay !== undefined)
-				queryParams.append("netWay", String(options.netWay));
-			if (options.productKey)
-				queryParams.append("productKey", options.productKey);
-			if (options.productKeyList && options.productKeyList.length > 0) {
-				options.productKeyList.forEach((key) =>
-					queryParams.append("productKeyList", key),
-				);
-			}
-			if (options.productList && options.productList.length > 0) {
-				options.productList.forEach((id) =>
-					queryParams.append("productList", String(id)),
-				);
-			}
-			if (options.productName)
-				queryParams.append("productName", options.productName);
-			if (options.releaseStatus !== undefined)
-				queryParams.append("releaseStatus", String(options.releaseStatus));
-			if (options.remark) queryParams.append("remark", options.remark);
-			if (options.searchValue)
-				queryParams.append("searchValue", options.searchValue);
-			if (options.sortType !== undefined)
-				queryParams.append("sortType", String(options.sortType));
-			if (options.tenantId !== undefined)
-				queryParams.append("tenantId", String(options.tenantId));
-			if (options.updateBy) queryParams.append("updateBy", options.updateBy);
-			if (options.updateTime)
-				queryParams.append("updateTime", options.updateTime);
-			if (options.vendorId !== undefined)
-				queryParams.append("vendorId", String(options.vendorId));
-
-			const url = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
-			console.log("📝 Product list request URL:", url);
-
-			const response = await fetch(url, {
-				method: "GET",
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-					"Accept-Language": "en-US",
-				},
-			});
-
-			console.log("📡 Product list response status:", response.status);
-			console.log(
-				"📡 Product list response headers:",
-				Object.fromEntries(response.headers.entries()),
-			);
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				console.error("❌ Product list HTTP error response:", errorText);
-				throw new Error(`API call failed: ${response.status} - ${errorText}`);
-			}
-
-			const result = (await response.json()) as any;
-			console.log(
-				"📋 Product list API response:",
-				JSON.stringify(result, null, 2),
-			);
-
-			if (result.code !== 200) {
-				throw new Error(`API call failed: ${result.msg || "Unknown error"}`);
-			}
-
-			return result;
+		// Delegate to simplified method for core pagination functionality
+		return EUOneAPIUtils.getProductListPaginated(env, {
+			pageNum: options.pageNum ? Number(options.pageNum) : undefined,
+			pageSize: options.pageSize ? Number(options.pageSize) : undefined,
+			productName: options.productName,
+			productKey: options.productKey,
+			releaseStatus: options.releaseStatus,
+			searchValue: options.searchValue,
 		});
 	}
 

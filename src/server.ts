@@ -776,14 +776,9 @@ export class VirtualDataMCP extends McpAgent {
 			async (args) => {
 				try {
 					console.log(
-						"get_product_list_paginated args received:",
+						"🚀 get_product_list_paginated called with args:",
 						JSON.stringify(args, null, 2),
 					);
-
-					// Proactively ensure we have a valid token before starting
-					console.log("🔐 Ensuring valid authentication token before API call...");
-					await EUOneAPIUtils.ensureValidToken(env);
-					console.log("✅ Token validation successful, proceeding with product list query");
 
 					const DEFAULT_PAGE_SIZE = 15;
 					let pageNo = 1;
@@ -795,78 +790,70 @@ export class VirtualDataMCP extends McpAgent {
 							const cursorData = decodeCursor(args.cursor);
 							pageNo = cursorData.pageNo;
 							pageSize = cursorData.pageSize || DEFAULT_PAGE_SIZE;
+							console.log(`📄 Cursor decoded: page ${pageNo}, size ${pageSize}`);
 						} catch (error) {
 							throw new Error("Invalid cursor format");
 						}
 					}
 
-					// Build API options
-					const options: any = {
+					// Build API options for simplified method
+					const options = {
 						pageNum: pageNo,
 						pageSize: pageSize,
+						...(args && typeof args === "object" && {
+							...(args.productName && { productName: args.productName }),
+							...(args.productKey && { productKey: args.productKey }),
+							...(typeof args.releaseStatus === "number" && { releaseStatus: args.releaseStatus }),
+							...(args.searchValue && { searchValue: args.searchValue }),
+						}),
 					};
 
-					if (args && typeof args === "object") {
-						if (args.productName) options.productName = args.productName;
-						if (args.productKey) options.productKey = args.productKey;
-						if (typeof args.releaseStatus === "number")
-							options.releaseStatus = args.releaseStatus;
-						if (args.searchValue) options.searchValue = args.searchValue;
-					}
+					console.log("📋 API request options:", JSON.stringify(options, null, 2));
 
-					console.log(
-						"Processed paginated options:",
-						JSON.stringify(options, null, 2),
-					);
+					// Call simplified method with fresh authentication each time
+					console.log("🔑 Calling getProductListPaginated with fresh authentication...");
+					const productData = await EUOneAPIUtils.getProductListPaginated(env, options);
 
-					const productData = await EUOneAPIUtils.getProductList(env, options);
+					// Format the simplified response
+					const products = productData.rows || [];
+					const total = productData.total || 0;
+					
+					console.log("✅ Successfully retrieved", products.length, "products out of", total, "total");
 
-					// Format the paginated response
-					let responseText = `📋 Product List (Page ${pageNo}, ${pageSize} items per page)\n`;
+					let responseText = `📋 **Product List Summary**\n`;
+					responseText += `Page ${pageNo} of ${Math.ceil(total / pageSize)} | ${pageSize} items per page | ${total} total products\n`;
 					responseText += `============================================================\n\n`;
 
-					if (
-						!productData ||
-						!productData.rows ||
-						productData.rows.length === 0
-					) {
-						responseText += "No products found.\n";
+					if (products.length === 0) {
+						responseText += "❌ No products found.\n\n";
 					} else {
-						const products = productData.rows;
-						const total = productData.total || 0;
-
 						products.forEach((product: any, index: number) => {
-							responseText += `${index + 1}. **${product.productName || "Unnamed Product"}**\n`;
-							responseText += `   Product Key: ${product.productKey || "N/A"}\n`;
-							responseText += `   Product ID: ${product.productId || "N/A"}\n`;
+							const itemNumber = (pageNo - 1) * pageSize + index + 1;
+							responseText += `${itemNumber}. **${product.productName || "Unnamed Product"}**\n`;
+							responseText += `   📋 Product Key: \`${product.productKey || "N/A"}\`\n`;
+							responseText += `   🆔 Product ID: ${product.productId || "N/A"}\n`;
 
-							// Release status
-							const releaseStatusMap: { [key: number]: string } = {
-								0: "Unpublished",
-								1: "Published",
-							};
-							responseText += `   Status: ${releaseStatusMap[product.releaseStatus] || "Unknown"}\n`;
+							// Status with emojis
+							const statusEmoji = product.releaseStatus === 1 ? "✅" : "⏸️";
+							const statusText = product.releaseStatus === 1 ? "Published" : "Unpublished";
+							responseText += `   ${statusEmoji} Status: ${statusText}\n`;
 
 							// Access type
-							const accessTypeMap: { [key: number]: string } = {
-								1: "Private",
-								2: "Public",
-							};
-							responseText += `   Access: ${accessTypeMap[product.accessType] || "Unknown"}\n`;
+							const accessEmoji = product.accessType === 1 ? "🔒" : "🌐";
+							const accessText = product.accessType === 1 ? "Private" : "Public";
+							responseText += `   ${accessEmoji} Access: ${accessText}\n`;
 
 							if (product.createTime) {
-								const createTime = new Date(
-									product.createTime,
-								).toLocaleString();
-								responseText += `   Created: ${createTime}\n`;
+								const createTime = new Date(product.createTime).toLocaleDateString();
+								responseText += `   📅 Created: ${createTime}\n`;
 							}
 
 							responseText += `\n`;
 						});
 
-						// Check if there are more pages
+						// Pagination navigation
 						const hasMorePages = pageNo * pageSize < total;
-
+						
 						if (hasMorePages) {
 							const nextCursor = encodeCursor({
 								pageNo: pageNo + 1,
@@ -874,11 +861,12 @@ export class VirtualDataMCP extends McpAgent {
 								totalItems: total,
 							});
 
-							responseText += `📄 More products available. Use cursor: ${nextCursor}\n`;
-							responseText += `Call this tool again with the cursor parameter to get the next page.\n`;
-						} else {
-							responseText += `📄 End of results. Total products: ${total}\n`;
+							responseText += `📄 **Next Page Available**\n`;
+							responseText += `Use cursor: \`${nextCursor}\`\n`;
+							responseText += `Call this tool again with the cursor parameter to get page ${pageNo + 1}.\n\n`;
 						}
+						
+						responseText += `🎯 **Summary**: Showing ${products.length} products (${((pageNo - 1) * pageSize + 1)} - ${Math.min(pageNo * pageSize, total)} of ${total})\n`;
 					}
 
 					return {
@@ -890,13 +878,11 @@ export class VirtualDataMCP extends McpAgent {
 						],
 					};
 				} catch (error) {
-					console.error("get_product_list_paginated error:", error);
+					console.error("❌ get_product_list_paginated error:", error);
 
-					let errorMessage = "Unknown error";
+					let errorMessage = "Unknown error occurred";
 					if (error instanceof Error) {
 						errorMessage = error.message;
-					} else if (typeof error === "object" && error !== null) {
-						errorMessage = JSON.stringify(error, null, 2);
 					}
 
 					return {
