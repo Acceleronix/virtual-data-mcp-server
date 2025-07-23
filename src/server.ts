@@ -279,7 +279,7 @@ export class VirtualDataMCP extends McpAgent {
 					},
 					pageSize: {
 						type: "number",
-						description: "Page size (default: 12)",
+						description: "Page size (default: 100, max: 200)",
 					},
 					accessType: {
 						type: "number",
@@ -350,9 +350,9 @@ export class VirtualDataMCP extends McpAgent {
 						// Build query parameters - only core parameters
 						const queryParams = new URLSearchParams();
 
-						// Set pagination parameters (using API playground tested values)
+						// Set pagination parameters with optimized defaults
 						const pageNum = options.pageNum ? String(options.pageNum) : "1";
-						const pageSize = options.pageSize ? String(options.pageSize) : "12"; // Default to 12 as per original design
+						const pageSize = options.pageSize ? String(Math.min(options.pageSize, 200)) : "100"; // Default to 100, max 200
 
 						queryParams.append("pageNum", pageNum);
 						queryParams.append("pageSize", pageSize);
@@ -561,14 +561,14 @@ export class VirtualDataMCP extends McpAgent {
 		// Paginated product list tool for better token efficiency
 		this.server.tool(
 			"get_product_list_paginated",
-			"Get paginated list of products (15 items per page) with cursor-based navigation",
+			"Get paginated list of products (100 items per page by default) with cursor-based navigation",
 			{
 				type: "object",
 				properties: {
 					cursor: {
 						type: "string",
 						description:
-							"Cursor for pagination (optional, omit for first page)",
+							"Cursor for pagination (optional, omit for first page). Auto-optimized: 150 items first page, 100 items subsequent pages",
 					},
 					productName: {
 						type: "string",
@@ -597,8 +597,9 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(args, null, 2),
 					);
 
-					const DEFAULT_PAGE_SIZE = 40; // Match API Playground exactly
-					let pageNo = 1; // Match API Playground exactly
+					const DEFAULT_PAGE_SIZE = 100; // Optimized for larger product sets
+					const MAX_PAGE_SIZE = 200; // API limit
+					let pageNo = 1;
 					let pageSize = DEFAULT_PAGE_SIZE;
 
 					// Parse cursor if provided
@@ -615,6 +616,15 @@ export class VirtualDataMCP extends McpAgent {
 						}
 					}
 
+					// Apply filters and optimize page size if needed
+					const hasFilters = args && (args.productName || args.productKey || args.searchValue || typeof args.releaseStatus === "number");
+					
+					// Auto-optimize page size based on context
+					if (!hasFilters && pageNo === 1) {
+						// First page without filters - use larger page size to capture all products
+						pageSize = Math.min(MAX_PAGE_SIZE, 150); 
+					}
+					
 					// Build API options for simplified method
 					const options = {
 						pageNum: pageNo,
@@ -716,6 +726,9 @@ export class VirtualDataMCP extends McpAgent {
 
 					let responseText = `📋 **Product List Summary**\n`;
 					responseText += `Page ${pageNo} of ${Math.ceil(total / pageSize)} | ${pageSize} items per page | ${total} total products\n`;
+					if (total > pageSize && !hasFilters) {
+						responseText += `💡 Showing ${Math.min(pageSize, total)} of ${total} products. Use cursor pagination for more.\n`;
+					}
 					responseText += `============================================================\n\n`;
 
 					if (products.length === 0) {
