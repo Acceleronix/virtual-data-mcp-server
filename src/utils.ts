@@ -437,9 +437,9 @@ export class EUOneAPIUtils {
 			// Build query parameters - only core parameters
 			const queryParams = new URLSearchParams();
 
-			// Set pagination parameters (using API playground tested values)
+			// Set pagination parameters (using small page size like health_check)
 			const pageNum = options.pageNum ? String(options.pageNum) : "1";
-			const pageSize = options.pageSize ? String(options.pageSize) : "15"; // Default to 15 as per tool design
+			const pageSize = options.pageSize ? String(options.pageSize) : "10"; // Smaller default to match working pattern
 
 			queryParams.append("pageNum", pageNum);
 			queryParams.append("pageSize", pageSize);

@@ -156,7 +156,7 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(args, null, 2),
 					);
 
-					const DEFAULT_PAGE_SIZE = 150; // Optimized to capture most product lists in one call
+					const DEFAULT_PAGE_SIZE = 10; // Small page size to match working health_check pattern
 					const MAX_PAGE_SIZE = 200; // API limit
 
 					// Apply intelligent page size optimization
