@@ -780,8 +780,8 @@ export class VirtualDataMCP extends McpAgent {
 						JSON.stringify(args, null, 2),
 					);
 
-					const DEFAULT_PAGE_SIZE = 15;
-					let pageNo = 1;
+					const DEFAULT_PAGE_SIZE = 30;  // As per user specification
+					let pageNo = 1;                 // Start from page 1 to check if products exist
 					let pageSize = DEFAULT_PAGE_SIZE;
 
 					// Parse cursor if provided
@@ -810,9 +810,85 @@ export class VirtualDataMCP extends McpAgent {
 
 					console.log("📋 API request options:", JSON.stringify(options, null, 2));
 
-					// Call simplified method with fresh authentication each time
-					console.log("🔑 Calling getProductListPaginated with fresh authentication...");
-					const productData = await EUOneAPIUtils.getProductListPaginated(env, options);
+					// Force clear any cached tokens and get completely fresh authentication
+					console.log("🔑 Forcing complete authentication refresh...");
+					
+					// Generate authentication parameters directly
+					const timestamp = Date.now();
+					const passwordPlain = `${env.APP_ID}${env.INDUSTRY_CODE}${timestamp}${env.APP_SECRET}`;
+					
+					// Create SHA-256 hash for password
+					const passwordBuffer = await crypto.subtle.digest(
+						"SHA-256",
+						new TextEncoder().encode(passwordPlain),
+					);
+					const password = Array.from(new Uint8Array(passwordBuffer))
+						.map((b) => b.toString(16).padStart(2, "0"))
+						.join("");
+
+					// Login request payload
+					const loginPayload = {
+						appId: env.APP_ID,
+						industryCode: env.INDUSTRY_CODE,
+						timestamp: timestamp,
+						password: password,
+					};
+
+					console.log("🔐 Performing fresh login with timestamp:", timestamp);
+
+					const loginResponse = await fetch(
+						`${env.BASE_URL}/v2/sysuser/openapi/ent/v3/login/pwdAuth`,
+						{
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify(loginPayload),
+						},
+					);
+
+					if (!loginResponse.ok) {
+						throw new Error(`Authentication failed: ${loginResponse.status}`);
+					}
+
+					const loginData = (await loginResponse.json()) as any;
+					console.log("🔐 Login response code:", loginData.code);
+
+					if (loginData.code !== 200) {
+						throw new Error(`Authentication failed: ${loginData.msg || "Unknown error"}`);
+					}
+
+					const freshToken = loginData.data.accessToken;
+					console.log("✅ Fresh token obtained, length:", freshToken.length);
+
+					// Now call product list API with fresh token
+					// Only use pageNum and pageSize as per user specification
+					const queryParams = new URLSearchParams();
+					queryParams.append("pageNum", String(pageNo));
+					queryParams.append("pageSize", String(pageSize));
+
+					const apiUrl = `${env.BASE_URL}/v2/product/product/list?${queryParams.toString()}`;
+					console.log("📋 API URL:", apiUrl);
+
+					const apiResponse = await fetch(apiUrl, {
+						method: "GET",
+						headers: {
+							Authorization: `Bearer ${freshToken}`,
+							"Accept-Language": "en-US",
+							"Content-Type": "application/json",
+						},
+					});
+
+					console.log("📡 API response status:", apiResponse.status);
+
+					if (!apiResponse.ok) {
+						const errorText = await apiResponse.text();
+						console.error("❌ API error response:", errorText);
+						throw new Error(`API call failed: ${apiResponse.status} - ${errorText}`);
+					}
+
+					const productData = (await apiResponse.json()) as any;
+					console.log("📋 API success, code:", productData.code, "rows:", productData.rows?.length || 0);
 
 					// Format the simplified response
 					const products = productData.rows || [];
