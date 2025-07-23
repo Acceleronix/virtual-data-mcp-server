@@ -15,43 +15,69 @@ export class VirtualDataMCP extends McpAgent {
 	});
 
 	async init() {
+		console.log("🚀 MCP Server starting initialization...");
 		const env = this.env as unknown as EUOneEnvironment;
 
-		// Validate environment variables
+		// Log environment variables for debugging (without sensitive values)
+		console.log("🔍 Environment check:");
+		console.log("  - BASE_URL:", env.BASE_URL ? "✅ Set" : "❌ Missing");
+		console.log("  - APP_ID:", env.APP_ID ? "✅ Set" : "❌ Missing");
+		console.log("  - APP_SECRET:", env.APP_SECRET ? "✅ Set" : "❌ Missing");  
+		console.log("  - INDUSTRY_CODE:", env.INDUSTRY_CODE ? "✅ Set" : "❌ Missing");
+
+		// Validate environment variables - but don't throw error to allow tools registration
 		if (!env.BASE_URL || !env.APP_ID || !env.APP_SECRET || !env.INDUSTRY_CODE) {
-			throw new Error(
-				"Missing required Acceleronix SaaS API environment variables: BASE_URL, APP_ID, APP_SECRET, INDUSTRY_CODE",
+			console.error(
+				"❌ Missing required Acceleronix SaaS API environment variables: BASE_URL, APP_ID, APP_SECRET, INDUSTRY_CODE",
 			);
+			console.log("⚠️ MCP server will start with limited functionality - tools will show authentication errors");
 		}
 
-		// Auto-login on server initialization with improved error handling
-		try {
-			console.log("🚀 MCP Server initializing - attempting automatic login...");
-			await EUOneAPIUtils.ensureValidToken(env);
-			console.log("✅ Auto-login successful - MCP server ready");
-		} catch (error) {
-			console.error("❌ Auto-login failed during initialization:", error);
-			// Don't throw error here - allow server to start even if login fails
-			// Login will be retried when tools are called with automatic refresh
-			console.log(
-				"⚠️ MCP server starting without initial authentication - login will be attempted on first tool use with auto-refresh",
-			);
-		}
-
+		// Always register tools first, regardless of environment validation
+		console.log("📋 Registering MCP tools...");
+		
 		// Health check / login test tool
 		this.addHealthCheckTool(env);
+		console.log("✅ Health check tool registered");
 
 		// TSL model tool
 		this.addTslModelTool(env);
+		console.log("✅ TSL model tool registered");
 
 		// Product list tool
 		this.addProductListTool(env);
+		console.log("✅ Product list tools registered");
 
 		// Device list tool
 		this.addDeviceListTool(env);
+		console.log("✅ Device list tool registered");
 
 		// Device report tool
 		this.addDeviceReportTool(env);
+		console.log("✅ Device report tool registered");
+
+		console.log("📋 All MCP tools registered successfully");
+
+		// Auto-login on server initialization with improved error handling
+		// This happens AFTER tools are registered
+		if (env.BASE_URL && env.APP_ID && env.APP_SECRET && env.INDUSTRY_CODE) {
+			try {
+				console.log("🔐 Attempting automatic login...");
+				await EUOneAPIUtils.ensureValidToken(env);
+				console.log("✅ Auto-login successful - MCP server ready with authentication");
+			} catch (error) {
+				console.error("❌ Auto-login failed during initialization:", error);
+				// Don't throw error here - allow server to start even if login fails
+				// Login will be retried when tools are called with automatic refresh
+				console.log(
+					"⚠️ MCP server started without initial authentication - login will be attempted on first tool use with auto-refresh",
+				);
+			}
+		} else {
+			console.log("⚠️ Skipping auto-login due to missing environment variables");
+		}
+
+		console.log("🚀 MCP Server initialization completed");
 	}
 
 	private addHealthCheckTool(env: EUOneEnvironment) {
