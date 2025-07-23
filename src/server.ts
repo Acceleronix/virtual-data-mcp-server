@@ -821,9 +821,15 @@ export class VirtualDataMCP extends McpAgent {
 					// Force clear any cached tokens and get completely fresh authentication
 					console.log("🔑 Forcing complete authentication refresh...");
 
-					// Generate authentication parameters directly
-					const timestamp = Date.now();
+					// Generate authentication parameters directly (matching API Playground format)
+					const timestamp = Date.now().toString(); // Convert to string like API Playground
 					const passwordPlain = `${env.APP_ID}${env.INDUSTRY_CODE}${timestamp}${env.APP_SECRET}`;
+
+					console.log("🔍 Direct auth debug:");
+					console.log(`   APP_ID: ${env.APP_ID}`);
+					console.log(`   INDUSTRY_CODE: ${env.INDUSTRY_CODE}`);
+					console.log(`   timestamp: ${timestamp}`);
+					console.log(`   passwordPlain: ${passwordPlain}`);
 
 					// Create SHA-256 hash for password
 					const passwordBuffer = await crypto.subtle.digest(
@@ -834,11 +840,13 @@ export class VirtualDataMCP extends McpAgent {
 						.map((b) => b.toString(16).padStart(2, "0"))
 						.join("");
 
-					// Login request payload
+					console.log(`   Generated password hash: ${password}`);
+
+					// Login request payload (matching API Playground exactly)
 					const loginPayload = {
 						appId: env.APP_ID,
 						industryCode: env.INDUSTRY_CODE,
-						timestamp: timestamp,
+						timestamp: timestamp, // String format like API Playground
 						password: password,
 					};
 

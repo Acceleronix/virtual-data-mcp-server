@@ -43,9 +43,15 @@ export class EUOneAPIUtils {
 
 		console.log("🔐 Access token expired or missing - requesting new token");
 
-		// Generate authentication parameters using the optimized approach from reference implementation
-		const timestamp = Date.now();
+		// Generate authentication parameters exactly matching API Playground format
+		const timestamp = Date.now().toString(); // Convert to string like API Playground
 		const passwordPlain = `${env.APP_ID}${env.INDUSTRY_CODE}${timestamp}${env.APP_SECRET}`;
+
+		console.log("🔍 Debug authentication generation:");
+		console.log(`   APP_ID: ${env.APP_ID}`);
+		console.log(`   INDUSTRY_CODE: ${env.INDUSTRY_CODE}`);
+		console.log(`   timestamp: ${timestamp}`);
+		console.log(`   passwordPlain: ${passwordPlain}`);
 
 		// Create SHA-256 hash for password using optimized approach
 		const encoder = new TextEncoder();
@@ -56,11 +62,13 @@ export class EUOneAPIUtils {
 			.map((b) => b.toString(16).padStart(2, "0"))
 			.join("");
 
-		// Login request payload (matching Python example structure)
+		console.log(`   Generated password hash: ${password}`);
+
+		// Login request payload (matching API Playground exactly)
 		const payload = {
 			appId: env.APP_ID,
 			industryCode: env.INDUSTRY_CODE,
-			timestamp: timestamp,
+			timestamp: timestamp, // String format like API Playground
 			password: password,
 		};
 
