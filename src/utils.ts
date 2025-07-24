@@ -577,7 +577,8 @@ export class EUOneAPIUtils {
 			const response = await fetch(`${env.BASE_URL}/v2/device/data/fake/up`, {
 				method: "POST",
 				headers: {
-					Authorization: `Bearer ${token}`,
+					Authorization: token,  // FIX: Direct token, no "Bearer " prefix  
+					"Accept-Language": "en-US",
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify(requestBody),

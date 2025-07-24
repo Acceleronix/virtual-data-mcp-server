@@ -47,6 +47,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addProductTslTool(env);
 		console.log("✅ Product TSL tool registered");
 
+		// Upload device data tool
+		this.addUploadDeviceDataTool(env);
+		console.log("✅ Upload device data tool registered");
+
 		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
@@ -501,6 +505,107 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting product TSL: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addUploadDeviceDataTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"upload_device_data",
+			{
+				deviceKey: z.string().describe("Device key to upload data for (required, e.g., 'VDU1293621240625108')"),
+				productKey: z.string().describe("Product key for the device (required, e.g., 'pe17Ez' from get_product_list)"),
+				data: z.record(z.any()).describe("Device TSL model data as key-value pairs (required, e.g., {\"temperature\": 26.7, \"humidity\": 68})"),
+				upTsTime: z.number().optional().describe("Upload timestamp in milliseconds (optional, defaults to current time)")
+			},
+			async ({ deviceKey, productKey, data, upTsTime }) => {
+				console.log("🔥 upload_device_data function ENTRY - parameters:", { deviceKey, productKey, data, upTsTime });
+				
+				try {
+					console.log("🚀 upload_device_data called with parameters:", { deviceKey, productKey, data, upTsTime });
+
+					// Parameter validation
+					if (!deviceKey || typeof deviceKey !== "string" || deviceKey.trim() === "") {
+						throw new Error("deviceKey is required and must be a non-empty string");
+					}
+
+					if (!productKey || typeof productKey !== "string" || productKey.trim() === "") {
+						throw new Error("productKey is required and must be a non-empty string");
+					}
+
+					if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+						throw new Error("data is required and must be a non-empty object with device property values");
+					}
+
+					const validDeviceKey = deviceKey.trim();
+					const validProductKey = productKey.trim();
+					const timestamp = upTsTime || Date.now();
+
+					console.log("✅ Using validated parameters:", { 
+						deviceKey: validDeviceKey, 
+						productKey: validProductKey, 
+						data,
+						upTsTime: timestamp
+					});
+
+					// Call the API using existing reportDeviceData method
+					const uploadResult = await EUOneAPIUtils.reportDeviceData(env, {
+						deviceKey: validDeviceKey,
+						productKey: validProductKey,
+						data: data,
+						upTsTime: timestamp
+					});
+
+					console.log("✅ Device data uploaded successfully");
+
+					// Format the response
+					let responseText = `📤 **Device Data Upload Result**\n`;
+					responseText += `Device Key: \`${validDeviceKey}\`\n`;
+					responseText += `Product Key: \`${validProductKey}\`\n`;
+					responseText += `Upload Time: ${new Date(timestamp).toISOString()}\n`;
+					responseText += `Data Properties: ${Object.keys(data).length} properties\n`;
+					responseText += `============================================================\n\n`;
+
+					if (uploadResult.code === 200) {
+						responseText += `✅ **Upload Successful**\n`;
+						responseText += `Status: ${uploadResult.msg || "Data uploaded successfully"}\n\n`;
+						
+						responseText += `📊 **Uploaded Data:**\n`;
+						Object.entries(data).forEach(([key, value]) => {
+							responseText += `   • ${key}: ${value}\n`;
+						});
+						
+						responseText += `\n💡 The device data has been successfully uploaded to the IoT platform.\n`;
+					} else {
+						responseText += `❌ **Upload Failed**\n`;
+						responseText += `Error: ${uploadResult.msg || "Unknown error"}\n`;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ upload_device_data error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error uploading device data: ${errorMessage}`,
 							},
 						],
 					};
