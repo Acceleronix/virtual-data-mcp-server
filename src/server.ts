@@ -385,12 +385,18 @@ export class VirtualDataMCP extends McpAgent {
 					);
 
 					console.log("🔍 Checking args.productKey:", args?.productKey);
-					console.log("🔍 args.productKey type:", typeof args?.productKey);
+					console.log("🔍 args.productKey type:", typeof args?.productKey);  
 					console.log("🔍 Condition check result:", !args?.productKey);
+					console.log("🔍 Full args object keys:", args ? Object.keys(args) : "null/undefined");
+					console.log("🔍 Full args values:", args ? Object.values(args) : "null/undefined");
+
+					// Temporary: Always show what we received
+					console.log("🔍 DEBUGGING - args contents:", JSON.stringify(args, null, 4));
 
 					if (!args?.productKey) {
 						console.log("❌ productKey validation FAILED - throwing error");
-						throw new Error("productKey is required");
+						console.log("❌ Expected productKey but got:", args?.productKey);
+						throw new Error("productKey is required - received args: " + JSON.stringify(args));
 					}
 
 					const productKey = args.productKey;
