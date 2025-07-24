@@ -283,7 +283,7 @@ export class EUOneAPIUtils {
 			
 			// FIX: Test authentication system directly, not business APIs
 			// health_check should verify auth system works, not test business APIs
-			let apiStatus = "OK - Authentication system verified";
+			const apiStatus = "OK - Authentication system verified";
 			
 			// The fact that we successfully got a token above proves auth system works
 			// No need to test business APIs in health_check
@@ -606,6 +606,68 @@ export class EUOneAPIUtils {
 
 			if (result.code !== 200) {
 				console.error("❌ Device list API returned error code:", {
+					code: result.code,
+					msg: result.msg,
+					fullResponse: result
+				});
+				throw new Error(`API call failed: Code ${result.code} - ${result.msg || "Unknown error"}`);
+			}
+
+			return result;
+		});
+	}
+
+	static async getProductTsl(
+		env: EUOneEnvironment,
+		options: {
+			productKey: string;
+			labelId?: number;
+			propCode?: string;
+			propName?: string;
+		},
+	): Promise<any> {
+		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
+			console.log("🔐 Using token for product TSL (length):", token.length);
+
+			// Build query parameters
+			const queryParams = new URLSearchParams();
+			queryParams.append("productKey", options.productKey);
+			
+			if (options.labelId !== undefined) {
+				queryParams.append("labelId", String(options.labelId));
+			}
+			if (options.propCode) {
+				queryParams.append("propCode", options.propCode);
+			}
+			if (options.propName) {
+				queryParams.append("propName", options.propName);
+			}
+
+			const url = `${env.BASE_URL}/v2/product/tsl/getProp?${queryParams.toString()}`;
+			console.log("📝 Product TSL request URL:", url);
+
+			const response = await fetch(url, {
+				method: "GET",
+				headers: {
+					Authorization: token, // Direct token, no "Bearer " prefix
+					"Accept-Language": "en-US",
+					"Content-Type": "application/json",
+				},
+			});
+
+			console.log("📡 Product TSL response status:", response.status);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error("❌ Product TSL HTTP error response:", errorText);
+				throw new Error(`API call failed: HTTP ${response.status} - ${errorText}`);
+			}
+
+			const result = (await response.json()) as any;
+			console.log("📋 Product TSL API response:", JSON.stringify(result, null, 2));
+
+			if (result.code !== 200) {
+				console.error("❌ Product TSL API returned error code:", {
 					code: result.code,
 					msg: result.msg,
 					fullResponse: result

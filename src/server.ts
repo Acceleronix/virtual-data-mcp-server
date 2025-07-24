@@ -51,6 +51,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addDeviceListTool(env);
 		console.log("✅ Device list tool registered");
 
+		// Product TSL tool
+		this.addProductTslTool(env);
+		console.log("✅ Product TSL tool registered");
+
 		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
@@ -535,32 +539,32 @@ export class VirtualDataMCP extends McpAgent {
 							responseText += `   ${activationEmoji} Activation: ${activationText}\n`;
 
 							// Running status
-							const runningStatusMap = {
+							const runningStatusMap: Record<number, { emoji: string; text: string }> = {
 								1: { emoji: "✅", text: "Normal" },
 								2: { emoji: "⚠️", text: "Alarm" },
 								3: { emoji: "❌", text: "Fault" },
 								4: { emoji: "🚨", text: "Fault+Alarm" }
 							};
-							const runningInfo = runningStatusMap[device.runningStatus] || { emoji: "❓", text: "Unknown" };
+							const runningInfo = runningStatusMap[device.runningStatus as number] || { emoji: "❓", text: "Unknown" };
 							responseText += `   ${runningInfo.emoji} Running: ${runningInfo.text}\n`;
 
 							// Device type
-							const accessTypeMap = {
+							const accessTypeMap: Record<number, string> = {
 								0: "📡 Direct Device",
 								1: "🌐 Gateway",  
 								2: "📟 Gateway Sub-device"
 							};
-							const deviceType = accessTypeMap[device.accessType] || "❓ Unknown";
+							const deviceType = accessTypeMap[device.accessType as number] || "❓ Unknown";
 							responseText += `   ${deviceType}\n`;
 
 							// Network type
-							const netWayMap = {
+							const netWayMap: Record<number, string> = {
 								1: "📶 WiFi",
 								2: "📱 Cellular",
 								3: "📡 NB-IoT",
 								4: "🔗 Other"
 							};
-							const netType = netWayMap[device.netWay] || "❓ Unknown";
+							const netType = netWayMap[device.netWay as number] || "❓ Unknown";
 							responseText += `   ${netType}\n`;
 
 							// Timestamps
@@ -626,6 +630,156 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting device list: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addProductTslTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_product_tsl",
+			{
+				productKey: z.string().describe("Product key to get TSL properties for (required, e.g., 'pe17Ez' from get_product_list)"),
+				labelId: z.number().optional().describe("Label ID to filter properties by (optional)"),
+				propCode: z.string().optional().describe("Property code to filter by specific property (optional)"),
+				propName: z.string().optional().describe("Property name to filter by specific property name (optional)")
+			},
+			async ({ productKey, labelId, propCode, propName }) => {
+				console.log("🔥 get_product_tsl function ENTRY - parameters:", { productKey, labelId, propCode, propName });
+				
+				try {
+					console.log("🚀 get_product_tsl called with parameters:", { productKey, labelId, propCode, propName });
+
+					// Parameter validation
+					if (!productKey || typeof productKey !== "string" || productKey.trim() === "") {
+						throw new Error("productKey is required and must be a non-empty string");
+					}
+
+					const validProductKey = productKey.trim();
+
+					console.log("✅ Using validated parameters:", { 
+						productKey: validProductKey, 
+						labelId,
+						propCode,
+						propName
+					});
+
+					// Call the API using the new getProductTsl method
+					const tslResult = await EUOneAPIUtils.getProductTsl(env, {
+						productKey: validProductKey,
+						labelId,
+						propCode,
+						propName
+					});
+
+					console.log("✅ Product TSL data retrieved successfully");
+
+					// Format the response
+					const tslProperties = tslResult.data || [];
+					
+					let responseText = `📋 **Product TSL Properties**\n`;
+					responseText += `Product Key: \`${validProductKey}\`\n`;
+					responseText += `Found ${tslProperties.length} properties\n`;
+					responseText += `============================================================\n\n`;
+
+					if (tslProperties.length === 0) {
+						responseText += "❌ No TSL properties found for this product.\n\n";
+					} else {
+						tslProperties.forEach((prop: any, index: number) => {
+							responseText += `${index + 1}. **${prop.name || "Unnamed Property"}**\n`;
+							responseText += `   📋 Code: \`${prop.code || "N/A"}\`\n`;
+							responseText += `   🆔 ID: ${prop.id || "N/A"}\n`;
+							responseText += `   📊 Data Type: ${prop.dataType || "N/A"}\n`;
+							responseText += `   🔧 Type: ${prop.type || "N/A"}\n`;
+							responseText += `   📝 Sub Type: ${prop.subType || "N/A"}\n`;
+							
+							if (prop.desc) {
+								responseText += `   📖 Description: ${prop.desc}\n`;
+							}
+
+							// Control and display settings
+							const controlEmoji = prop.enableControl ? "✅" : "❌";
+							responseText += `   ${controlEmoji} Controllable: ${prop.enableControl ? "Yes" : "No"}\n`;
+							
+							const displayEmoji = prop.display ? "👁️" : "🚫";
+							responseText += `   ${displayEmoji} Display: ${prop.display ? "Yes" : "No"}\n`;
+
+							if (prop.unit) {
+								responseText += `   📏 Unit: ${prop.unit}\n`;
+							}
+
+							// Specs information
+							if (prop.specs && Array.isArray(prop.specs) && prop.specs.length > 0) {
+								responseText += `   📐 **Specifications:**\n`;
+								prop.specs.forEach((spec: any, specIndex: number) => {
+									if (spec.name) {
+										responseText += `     ${specIndex + 1}. ${spec.name}\n`;
+									}
+									if (spec.dataType) {
+										responseText += `        • Data Type: ${spec.dataType}\n`;
+									}
+									if (spec.min !== null && spec.min !== undefined) {
+										responseText += `        • Min: ${spec.min}\n`;
+									}
+									if (spec.max !== null && spec.max !== undefined) {
+										responseText += `        • Max: ${spec.max}\n`;
+									}
+									if (spec.step !== null && spec.step !== undefined) {
+										responseText += `        • Step: ${spec.step}\n`;
+									}
+									if (spec.unit) {
+										responseText += `        • Unit: ${spec.unit}\n`;
+									}
+									if (spec.value !== null && spec.value !== undefined) {
+										responseText += `        • Value: ${spec.value}\n`;
+									}
+									// Handle nested specs (like RGB color components)
+									if (spec.specs && Array.isArray(spec.specs) && spec.specs.length > 0) {
+										responseText += `        • Sub-specs: ${spec.specs.length} items\n`;
+										spec.specs.forEach((subSpec: any, subIndex: number) => {
+											if (subSpec.min !== null && subSpec.max !== null) {
+												responseText += `          ${subIndex + 1}. Range: ${subSpec.min}-${subSpec.max}\n`;
+											}
+										});
+									}
+								});
+							}
+
+							if (prop.sortNum) {
+								responseText += `   📊 Sort Order: ${prop.sortNum}\n`;
+							}
+
+							responseText += `\n`;
+						});
+
+						responseText += `📊 **Summary**: Retrieved ${tslProperties.length} TSL properties for product \`${validProductKey}\`\n`;
+						responseText += `💡 These properties define how the device data should be structured and what controls are available.\n`;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_product_tsl error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting product TSL: ${errorMessage}`,
 							},
 						],
 					};
