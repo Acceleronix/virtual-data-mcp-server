@@ -33,8 +33,8 @@ export default {
                 <ul>
                     <li><strong>Health Check:</strong> health_check - Comprehensive health check with authentication, token status, and API connectivity</li>
                     <li><strong>Get Product List:</strong> get_product_list - Get list of products with intelligent pagination and filtering</li>
-                    <li><strong>Get Product TSL:</strong> get_product_tsl - Get product Thing Specification Language (TSL) model defining device properties and controls</li>
                     <li><strong>Upload Device Data:</strong> upload_device_data - Upload device TSL model data to simulate device data reporting</li>
+                    <li><strong>Get Device List:</strong> get_device_list - Get comprehensive device list with filtering, pagination, and detailed device information</li>
                 </ul>
                 <br>
                 <h3>Environment Variables Required:</h3>

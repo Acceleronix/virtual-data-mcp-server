@@ -608,23 +608,52 @@ export class EUOneAPIUtils {
 		});
 	}
 
-	static async getProductTsl(
+	static async getDeviceList(
 		env: EUOneEnvironment,
-		productKey: string,
+		options: {
+			pageNum?: number;
+			pageSize?: number;
+			productId?: number;
+			deviceKey?: string;
+			deviceName?: string;
+			orgId?: number;
+			extFiledList?: any[];
+			tlsPropCfgList?: any[];
+			enableListSubData?: boolean;
+			deviceQueryKey?: string;
+			activationStatus?: number;
+			onlineStatus?: number;
+			runningStatus?: number;
+			accessType?: number;
+			productKey?: string;
+		} = {},
 	): Promise<any> {
 		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
-			console.log("🔐 Using token for product TSL (length):", token.length);
-			console.log("📋 Getting TSL for product key:", productKey);
+			console.log("🔐 Using token for device list (length):", token.length);
 
-			// Build request body for POST request
+			// Build request body with default values
 			const requestBody = {
-				productKey: productKey
+				pageNum: options.pageNum || 1,
+				pageSize: options.pageSize || 10,
+				activationStatus: options.activationStatus !== undefined ? options.activationStatus : 1, // Default to activated devices
+				enableListSubData: options.enableListSubData !== undefined ? options.enableListSubData : true,
+				extFiledList: options.extFiledList || [],
+				tlsPropCfgList: options.tlsPropCfgList || [],
+				...(options.productId && { productId: options.productId }),
+				...(options.deviceKey && { deviceKey: options.deviceKey }),
+				...(options.deviceName && { deviceName: options.deviceName }),
+				...(options.orgId && { orgId: options.orgId }),
+				...(options.deviceQueryKey && { deviceQueryKey: options.deviceQueryKey }),
+				...(options.onlineStatus !== undefined && { onlineStatus: options.onlineStatus }),
+				...(options.runningStatus !== undefined && { runningStatus: options.runningStatus }),
+				...(options.accessType !== undefined && { accessType: options.accessType }),
+				...(options.productKey && { productKey: options.productKey }),
 			};
 
-			console.log("📝 Product TSL request body:", JSON.stringify(requestBody, null, 2));
+			console.log("📝 Device list request body:", JSON.stringify(requestBody, null, 2));
 
-			const url = `${env.BASE_URL}/v2/product/tsl/getProp`;
-			console.log("📝 Product TSL request URL:", url);
+			const url = `${env.BASE_URL}/v2/device/list`;
+			console.log("📝 Device list request URL:", url);
 
 			const response = await fetch(url, {
 				method: "POST",
@@ -636,19 +665,19 @@ export class EUOneAPIUtils {
 				body: JSON.stringify(requestBody),
 			});
 
-			console.log("📡 Product TSL response status:", response.status);
+			console.log("📡 Device list response status:", response.status);
 
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.error("❌ Product TSL HTTP error response:", errorText);
+				console.error("❌ Device list HTTP error response:", errorText);
 				throw new Error(`API call failed: HTTP ${response.status} - ${errorText}`);
 			}
 
 			const result = (await response.json()) as any;
-			console.log("📋 Product TSL API response:", JSON.stringify(result, null, 2));
+			console.log("📱 Device list API response:", JSON.stringify(result, null, 2));
 
 			if (result.code !== 200) {
-				console.error("❌ Product TSL API returned error code:", {
+				console.error("❌ Device list API returned error code:", {
 					code: result.code,
 					msg: result.msg,
 					fullResponse: result
@@ -659,4 +688,5 @@ export class EUOneAPIUtils {
 			return result;
 		});
 	}
+
 }

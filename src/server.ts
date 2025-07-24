@@ -43,13 +43,13 @@ export class VirtualDataMCP extends McpAgent {
 		this.addProductListTool(env);
 		console.log("✅ Product list tools registered");
 
-		// Product TSL tool
-		this.addProductTslTool(env);
-		console.log("✅ Product TSL tool registered");
-
 		// Upload device data tool
 		this.addUploadDeviceDataTool(env);
 		console.log("✅ Upload device data tool registered");
+
+		// Device list tool
+		this.addDeviceListTool(env);
+		console.log("✅ Device list tool registered");
 
 		console.log("📋 MCP tools registered successfully");
 
@@ -361,157 +361,6 @@ export class VirtualDataMCP extends McpAgent {
 		);
 	}
 
-	private addProductTslTool(env: EUOneEnvironment) {
-		this.server.tool(
-			"get_product_tsl",
-			{
-				productKey: z.string().describe("Product key to get TSL model for (required, e.g., 'pe17Ez' from get_product_list)")
-			},
-			async ({ productKey }) => {
-				console.log("🔥 get_product_tsl function ENTRY - productKey:", productKey);
-				console.log("🔥 productKey type:", typeof productKey);
-				
-				try {
-					console.log("🚀 get_product_tsl called with productKey:", productKey);
-
-					if (!productKey || typeof productKey !== "string" || productKey.trim() === "") {
-						console.log("❌ productKey validation FAILED - throwing error");
-						console.log("❌ Expected productKey but got:", productKey);
-						throw new Error("productKey is required and must be a non-empty string");
-					}
-
-					const validProductKey = productKey.trim();
-					console.log("✅ Using validated productKey:", validProductKey);
-
-					// Use centralized token management - only pass productKey
-					const tslData = await EUOneAPIUtils.getProductTsl(env, validProductKey);
-
-					// Format the response
-					const properties = tslData.data || [];
-					
-					console.log(
-						"✅ Successfully retrieved TSL model with",
-						properties.length,
-						"properties",
-					);
-
-					let responseText = `🔧 **Product TSL Model**\n`;
-					responseText += `Product Key: \`${validProductKey}\`\n`;
-					responseText += `Found ${properties.length} properties\n`;
-					responseText += `============================================================\n\n`;
-
-					if (properties.length === 0) {
-						responseText += "❌ No TSL properties found for this product.\n\n";
-					} else {
-						properties.forEach((prop: any, index: number) => {
-							responseText += `${index + 1}. **${prop.name || "Unnamed Property"}**\n`;
-							responseText += `   📋 Code: \`${prop.code || "N/A"}\`\n`;
-							responseText += `   🆔 ID: ${prop.id || "N/A"}\n`;
-							responseText += `   🏷️ Type: ${prop.type || "N/A"} (${prop.dataType || "N/A"})\n`;
-							responseText += `   📝 Description: ${prop.desc || "No description"}\n`;
-							
-							// Sub type (R = Read, W = Write, RW = Read/Write)
-							if (prop.subType) {
-								const subTypeMap = {
-									"R": "📖 Read-only",
-									"W": "✏️ Write-only", 
-									"RW": "🔄 Read/Write"
-								};
-								responseText += `   ${subTypeMap[prop.subType] || prop.subType} Access\n`;
-							}
-
-							// Control capability
-							if (prop.enableControl) {
-								responseText += `   🎛️ Controllable: ✅ Yes\n`;
-							} else {
-								responseText += `   🎛️ Controllable: ❌ No\n`;
-							}
-
-							// Display settings
-							if (prop.display) {
-								responseText += `   👁️ Display: ✅ Enabled\n`;
-							}
-
-							// Sort order
-							if (prop.sortNum) {
-								responseText += `   🔢 Sort Order: ${prop.sortNum}\n`;
-							}
-
-							// Specs information - enhanced for different data types
-							if (prop.specs && prop.specs.length > 0) {
-								responseText += `   📊 **Specifications**:\n`;
-								
-								if (prop.dataType === "STRUCT") {
-									// Handle struct types like RGB color
-									prop.specs.forEach((spec: any, specIndex: number) => {
-										responseText += `     ${specIndex + 1}. **${spec.name || spec.code}** (${spec.dataType || "N/A"})\n`;
-										if (spec.specs && spec.specs.length > 0) {
-											spec.specs.forEach((subSpec: any) => {
-												if (subSpec.min !== undefined && subSpec.max !== undefined) {
-													responseText += `        Range: ${subSpec.min} - ${subSpec.max}`;
-													if (subSpec.unit) responseText += ` ${subSpec.unit}`;
-													if (subSpec.step) responseText += `, Step: ${subSpec.step}`;
-													responseText += `\n`;
-												}
-											});
-										}
-									});
-								} else if (prop.dataType === "BOOL") {
-									// Handle boolean types with true/false values
-									prop.specs.forEach((spec: any) => {
-										if (spec.name && spec.value !== undefined) {
-											responseText += `     • ${spec.name}: ${spec.value}\n`;
-										}
-									});
-								} else {
-									// Handle numeric types (INT, DOUBLE, etc.)
-									const spec = prop.specs[0];
-									if (spec) {
-										if (spec.min !== undefined && spec.max !== undefined) {
-											responseText += `     Range: ${spec.min} - ${spec.max}`;
-											if (spec.unit) responseText += ` ${spec.unit}`;
-											if (spec.step) responseText += `, Step: ${spec.step}`;
-											responseText += `\n`;
-										}
-									}
-								}
-							}
-
-							responseText += `\n`;
-						});
-
-						responseText += `📊 **Summary**: Found ${properties.length} TSL properties for product \`${validProductKey}\`\n`;
-						responseText += `💡 This TSL model defines the device capabilities including sensors, controls, and data formats.\n`;
-					}
-
-					return {
-						content: [
-							{
-								type: "text",
-								text: responseText,
-							},
-						],
-					};
-				} catch (error) {
-					console.error("❌ get_product_tsl error:", error);
-
-					let errorMessage = "Unknown error occurred";
-					if (error instanceof Error) {
-						errorMessage = error.message;
-					}
-
-					return {
-						content: [
-							{
-								type: "text",
-								text: `❌ Error getting product TSL: ${errorMessage}`,
-							},
-						],
-					};
-				}
-			},
-		);
-	}
 
 	private addUploadDeviceDataTool(env: EUOneEnvironment) {
 		this.server.tool(
@@ -606,6 +455,177 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error uploading device data: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addDeviceListTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_device_list",
+			{
+				pageNum: z.number().optional().describe("Page number starting from 1 (optional, default: 1)"),
+				pageSize: z.number().optional().describe("Number of devices per page, max 1000 (optional, default: 10)"),
+				productId: z.number().optional().describe("Product ID to filter devices (optional, e.g., 2989)"),
+				deviceKey: z.string().optional().describe("Device key to filter by specific device (optional)"),
+				deviceName: z.string().optional().describe("Device name to filter by device name (optional)"),
+				deviceQueryKey: z.string().optional().describe("Search by device key, name, or SN (optional)"),
+				activationStatus: z.number().optional().describe("Activation status: 0=not activated, 1=activated (optional, default: 1)"),
+				onlineStatus: z.number().optional().describe("Online status: 0=offline, 1=online (optional)"),
+				runningStatus: z.number().optional().describe("Running status: 1=normal, 2=alarm, 3=fault, 4=fault+alarm (optional)"),
+				accessType: z.number().optional().describe("Device type: 0=direct device, 1=gateway, 2=gateway sub-device (optional)"),
+				productKey: z.string().optional().describe("Product key to filter devices (optional, e.g., 'pe17Ez')"),
+				orgId: z.number().optional().describe("Organization ID to filter devices (optional)")
+			},
+			async ({ pageNum, pageSize, productId, deviceKey, deviceName, deviceQueryKey, activationStatus, onlineStatus, runningStatus, accessType, productKey, orgId }) => {
+				console.log("🔥 get_device_list function ENTRY - parameters:", { pageNum, pageSize, productId, deviceKey, deviceName, deviceQueryKey, activationStatus, onlineStatus, runningStatus, accessType, productKey, orgId });
+				
+				try {
+					console.log("🚀 get_device_list called with parameters:", { pageNum, pageSize, productId, deviceKey, deviceName, deviceQueryKey, activationStatus, onlineStatus, runningStatus, accessType, productKey, orgId });
+
+					// Call the API
+					const deviceListData = await EUOneAPIUtils.getDeviceList(env, {
+						pageNum,
+						pageSize,
+						productId,
+						deviceKey,
+						deviceName,
+						deviceQueryKey,
+						activationStatus,
+						onlineStatus,
+						runningStatus,
+						accessType,
+						productKey,
+						orgId
+					});
+
+					// Format the response
+					const devices = deviceListData.rows || [];
+					const total = deviceListData.total || 0;
+					
+					console.log("✅ Successfully retrieved", devices.length, "devices out of", total, "total");
+
+					let responseText = `📱 **Device List**\n`;
+					responseText += `Found ${devices.length} devices (Total: ${total})\n`;
+					if (total > devices.length) {
+						responseText += `💡 Showing ${devices.length} of ${total} devices. Use pageNum and pageSize parameters for pagination.\n`;
+					}
+					responseText += `============================================================\n\n`;
+
+					if (devices.length === 0) {
+						responseText += "❌ No devices found matching the criteria.\n\n";
+					} else {
+						devices.forEach((device: any, index: number) => {
+							responseText += `${index + 1}. **${device.deviceName || "Unnamed Device"}**\n`;
+							responseText += `   📋 Device Key: \`${device.deviceKey || "N/A"}\`\n`;
+							responseText += `   🆔 Device ID: ${device.deviceId || "N/A"}\n`;
+							responseText += `   📦 Product: ${device.productName || "N/A"} (\`${device.productKey || "N/A"}\`)\n`;
+							responseText += `   🏢 Organization: ${device.orgName || "N/A"} (ID: ${device.orgId || "N/A"})\n`;
+
+							// Status indicators
+							const onlineEmoji = device.onlineStatus === 1 ? "🟢" : "🔴";
+							const onlineText = device.onlineStatus === 1 ? "Online" : "Offline";
+							responseText += `   ${onlineEmoji} Status: ${onlineText}\n`;
+
+							const activationEmoji = device.activationStatus === 1 ? "✅" : "⏸️";
+							const activationText = device.activationStatus === 1 ? "Activated" : "Not Activated";
+							responseText += `   ${activationEmoji} Activation: ${activationText}\n`;
+
+							// Running status
+							const runningStatusMap = {
+								1: { emoji: "✅", text: "Normal" },
+								2: { emoji: "⚠️", text: "Alarm" },
+								3: { emoji: "❌", text: "Fault" },
+								4: { emoji: "🚨", text: "Fault+Alarm" }
+							};
+							const runningInfo = runningStatusMap[device.runningStatus] || { emoji: "❓", text: "Unknown" };
+							responseText += `   ${runningInfo.emoji} Running: ${runningInfo.text}\n`;
+
+							// Device type
+							const accessTypeMap = {
+								0: "📡 Direct Device",
+								1: "🌐 Gateway",  
+								2: "📟 Gateway Sub-device"
+							};
+							const deviceType = accessTypeMap[device.accessType] || "❓ Unknown";
+							responseText += `   ${deviceType}\n`;
+
+							// Network type
+							const netWayMap = {
+								1: "📶 WiFi",
+								2: "📱 Cellular",
+								3: "📡 NB-IoT",
+								4: "🔗 Other"
+							};
+							const netType = netWayMap[device.netWay] || "❓ Unknown";
+							responseText += `   ${netType}\n`;
+
+							// Timestamps
+							if (device.tsLastOnlineTime) {
+								const lastOnline = new Date(device.tsLastOnlineTime).toLocaleString();
+								responseText += `   ⏰ Last Online: ${lastOnline}\n`;
+							}
+
+							if (device.tsCreateTime) {
+								const createTime = new Date(device.tsCreateTime).toLocaleString();
+								responseText += `   📅 Created: ${createTime}\n`;
+							}
+
+							// Model and additional info
+							if (device.modelSpec) {
+								responseText += `   🔧 Model: ${device.modelSpec}\n`;
+							}
+
+							if (device.iccid) {
+								responseText += `   📇 ICCID: ${device.iccid}\n`;
+							}
+
+							// Device properties (if available)
+							if (device.prop && Object.keys(device.prop).length > 0) {
+								responseText += `   📊 **Current Data**:\n`;
+								Object.entries(device.prop).forEach(([key, value]) => {
+									if (typeof value === 'object' && value !== null) {
+										responseText += `     • ${key}: ${JSON.stringify(value)}\n`;
+									} else {
+										responseText += `     • ${key}: ${value}\n`;
+									}
+								});
+							}
+
+							responseText += `\n`;
+						});
+
+						if (total > devices.length) {
+							responseText += `📊 **Summary**: Showing ${devices.length} of ${total} total devices\n`;
+							responseText += `💡 Use pageNum and pageSize parameters for pagination\n`;
+							responseText += `📄 Example: get_device_list with pageNum: 2, pageSize: 20\n`;
+						}
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_device_list error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting device list: ${errorMessage}`,
 							},
 						],
 					};
