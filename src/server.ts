@@ -360,50 +360,27 @@ export class VirtualDataMCP extends McpAgent {
 	private addProductTslTool(env: EUOneEnvironment) {
 		this.server.tool(
 			"get_product_tsl",
-			"Get product Thing Specification Language (TSL) model - defines device properties, controls, and data specifications",
 			{
-				type: "object",
-				properties: {
-					productKey: {
-						type: "string",
-						description: "Product key to get TSL model for (required, e.g., 'pe17Ez' from get_product_list)",
-					},
-				},
-				required: [],
+				productKey: z.string().describe("Product key to get TSL model for (required, e.g., 'pe17Ez' from get_product_list)")
 			},
-			async (args) => {
-				console.log("🔥 get_product_tsl function ENTRY - args:", JSON.stringify(args, null, 2));
-				console.log("🔥 args type:", typeof args);
-				console.log("🔥 args is null?:", args === null);
-				console.log("🔥 args is undefined?:", args === undefined);
-				console.log("🔥 args keys:", args ? Object.keys(args) : "no keys");
+			async ({ productKey }) => {
+				console.log("🔥 get_product_tsl function ENTRY - productKey:", productKey);
+				console.log("🔥 productKey type:", typeof productKey);
 				
 				try {
-					console.log(
-						"🚀 get_product_tsl called with args:",
-						JSON.stringify(args, null, 2),
-					);
+					console.log("🚀 get_product_tsl called with productKey:", productKey);
 
-					console.log("🔍 Checking args.productKey:", args?.productKey);
-					console.log("🔍 args.productKey type:", typeof args?.productKey);  
-					console.log("🔍 Condition check result:", !args?.productKey);
-					console.log("🔍 Full args object keys:", args ? Object.keys(args) : "null/undefined");
-					console.log("🔍 Full args values:", args ? Object.values(args) : "null/undefined");
-
-					// Temporary: Always show what we received
-					console.log("🔍 DEBUGGING - args contents:", JSON.stringify(args, null, 4));
-
-					if (!args?.productKey) {
+					if (!productKey || typeof productKey !== "string" || productKey.trim() === "") {
 						console.log("❌ productKey validation FAILED - throwing error");
-						console.log("❌ Expected productKey but got:", args?.productKey);
-						throw new Error("productKey is required - received args: " + JSON.stringify(args));
+						console.log("❌ Expected productKey but got:", productKey);
+						throw new Error("productKey is required and must be a non-empty string");
 					}
 
-					const productKey = args.productKey;
-					console.log("✅ productKey validation PASSED:", productKey);
+					const validProductKey = productKey.trim();
+					console.log("✅ Using validated productKey:", validProductKey);
 
 					// Use centralized token management - only pass productKey
-					const tslData = await EUOneAPIUtils.getProductTsl(env, productKey);
+					const tslData = await EUOneAPIUtils.getProductTsl(env, validProductKey);
 
 					// Format the response
 					const properties = tslData.data || [];
@@ -415,7 +392,7 @@ export class VirtualDataMCP extends McpAgent {
 					);
 
 					let responseText = `🔧 **Product TSL Model**\n`;
-					responseText += `Product Key: \`${productKey}\`\n`;
+					responseText += `Product Key: \`${validProductKey}\`\n`;
 					responseText += `Found ${properties.length} properties\n`;
 					responseText += `============================================================\n\n`;
 
@@ -499,7 +476,7 @@ export class VirtualDataMCP extends McpAgent {
 							responseText += `\n`;
 						});
 
-						responseText += `📊 **Summary**: Found ${properties.length} TSL properties for product \`${productKey}\`\n`;
+						responseText += `📊 **Summary**: Found ${properties.length} TSL properties for product \`${validProductKey}\`\n`;
 						responseText += `💡 This TSL model defines the device capabilities including sensors, controls, and data formats.\n`;
 					}
 
