@@ -369,7 +369,7 @@ export class VirtualDataMCP extends McpAgent {
 						description: "Product key to get TSL model for (required, e.g., 'pe17Ez' from get_product_list)",
 					},
 				},
-				required: ["productKey"],
+				required: [],
 			},
 			async (args) => {
 				console.log("🔥 get_product_tsl function ENTRY - args:", JSON.stringify(args, null, 2));
