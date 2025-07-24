@@ -287,24 +287,30 @@ export class VirtualDataMCP extends McpAgent {
 						products.forEach((product: any, index: number) => {
 							responseText += `${index + 1}. **${product.productName || "Unnamed Product"}**\n`;
 							responseText += `   📋 Product Key: \`${product.productKey || "N/A"}\`\n`;
-							responseText += `   🆔 Product ID: ${product.productId || "N/A"}\n`;
+							responseText += `   🆔 Product ID: ${product.id || "N/A"}\n`;  // FIX: Use 'id' field
+							responseText += `   🏢 Vendor: ${product.vendorName || "N/A"} (ID: ${product.vendorId || "N/A"})\n`;
+							responseText += `   🏷️ Category: ${product.categoryName || "N/A"} - ${product.itemValue || "N/A"}\n`;
+							responseText += `   📊 Devices: ${product.deviceNum || 0}\n`;
 
-							// Status with emojis
-							const statusEmoji = product.releaseStatus === 1 ? "✅" : "⏸️";
-							const statusText =
-								product.releaseStatus === 1 ? "Published" : "Unpublished";
+							// Status with emojis - FIX: releaseStatus = 2 means Published based on JSON
+							const statusEmoji = product.releaseStatus === 2 ? "✅" : "⏸️";
+							const statusText = product.releaseStatus === 2 ? "Published" : "Unpublished";
 							responseText += `   ${statusEmoji} Status: ${statusText}\n`;
 
-							// Access type
-							const accessEmoji = product.accessType === 1 ? "🔒" : "🌐";
-							const accessText =
-								product.accessType === 1 ? "Private" : "Public";
-							responseText += `   ${accessEmoji} Access: ${accessText}\n`;
+							// Access type - enhanced mapping
+							const getAccessType = (type: number) => {
+								switch(type) {
+									case 0: return { emoji: "🌐", text: "Public" };
+									case 1: return { emoji: "🔒", text: "Private" };
+									case 2: return { emoji: "🏢", text: "Enterprise" };
+									default: return { emoji: "❓", text: "Unknown" };
+								}
+							};
+							const access = getAccessType(product.accessType);
+							responseText += `   ${access.emoji} Access: ${access.text}\n`;
 
-							if (product.createTime) {
-								const createTime = new Date(
-									product.createTime,
-								).toLocaleDateString();
+							if (product.tsCreateTime) {  // FIX: Use 'tsCreateTime' field
+								const createTime = new Date(product.tsCreateTime).toLocaleDateString();
 								responseText += `   📅 Created: ${createTime}\n`;
 							}
 
