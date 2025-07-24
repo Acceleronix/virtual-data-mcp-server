@@ -43,7 +43,11 @@ export class VirtualDataMCP extends McpAgent {
 		this.addProductListTool(env);
 		console.log("✅ Product list tools registered");
 
-		console.log("📋 MCP tools registered successfully (simplified for testing)");
+		// Product TSL tool
+		this.addProductTslTool(env);
+		console.log("✅ Product TSL tool registered");
+
+		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
 		// This happens AFTER tools are registered and ensures token is ready for immediate use
@@ -345,6 +349,175 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting product list: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addProductTslTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_product_tsl",
+			"Get product Thing Specification Language (TSL) model - defines device properties, controls, and data specifications",
+			{
+				type: "object",
+				properties: {
+					productKey: {
+						type: "string",
+						description: "Product key to get TSL model for (required, e.g., 'pe17Ez' from get_product_list)",
+					},
+				},
+				required: ["productKey"],
+			},
+			async (args) => {
+				console.log("🔥 get_product_tsl function ENTRY - args:", JSON.stringify(args, null, 2));
+				console.log("🔥 args type:", typeof args);
+				console.log("🔥 args is null?:", args === null);
+				console.log("🔥 args is undefined?:", args === undefined);
+				console.log("🔥 args keys:", args ? Object.keys(args) : "no keys");
+				
+				try {
+					console.log(
+						"🚀 get_product_tsl called with args:",
+						JSON.stringify(args, null, 2),
+					);
+
+					console.log("🔍 Checking args.productKey:", args?.productKey);
+					console.log("🔍 args.productKey type:", typeof args?.productKey);
+					console.log("🔍 Condition check result:", !args?.productKey);
+
+					if (!args?.productKey) {
+						console.log("❌ productKey validation FAILED - throwing error");
+						throw new Error("productKey is required");
+					}
+
+					const productKey = args.productKey;
+					console.log("✅ productKey validation PASSED:", productKey);
+
+					// Use centralized token management - only pass productKey
+					const tslData = await EUOneAPIUtils.getProductTsl(env, productKey);
+
+					// Format the response
+					const properties = tslData.data || [];
+					
+					console.log(
+						"✅ Successfully retrieved TSL model with",
+						properties.length,
+						"properties",
+					);
+
+					let responseText = `🔧 **Product TSL Model**\n`;
+					responseText += `Product Key: \`${productKey}\`\n`;
+					responseText += `Found ${properties.length} properties\n`;
+					responseText += `============================================================\n\n`;
+
+					if (properties.length === 0) {
+						responseText += "❌ No TSL properties found for this product.\n\n";
+					} else {
+						properties.forEach((prop: any, index: number) => {
+							responseText += `${index + 1}. **${prop.name || "Unnamed Property"}**\n`;
+							responseText += `   📋 Code: \`${prop.code || "N/A"}\`\n`;
+							responseText += `   🆔 ID: ${prop.id || "N/A"}\n`;
+							responseText += `   🏷️ Type: ${prop.type || "N/A"} (${prop.dataType || "N/A"})\n`;
+							responseText += `   📝 Description: ${prop.desc || "No description"}\n`;
+							
+							// Sub type (R = Read, W = Write, RW = Read/Write)
+							if (prop.subType) {
+								const subTypeMap = {
+									"R": "📖 Read-only",
+									"W": "✏️ Write-only", 
+									"RW": "🔄 Read/Write"
+								};
+								responseText += `   ${subTypeMap[prop.subType] || prop.subType} Access\n`;
+							}
+
+							// Control capability
+							if (prop.enableControl) {
+								responseText += `   🎛️ Controllable: ✅ Yes\n`;
+							} else {
+								responseText += `   🎛️ Controllable: ❌ No\n`;
+							}
+
+							// Display settings
+							if (prop.display) {
+								responseText += `   👁️ Display: ✅ Enabled\n`;
+							}
+
+							// Sort order
+							if (prop.sortNum) {
+								responseText += `   🔢 Sort Order: ${prop.sortNum}\n`;
+							}
+
+							// Specs information - enhanced for different data types
+							if (prop.specs && prop.specs.length > 0) {
+								responseText += `   📊 **Specifications**:\n`;
+								
+								if (prop.dataType === "STRUCT") {
+									// Handle struct types like RGB color
+									prop.specs.forEach((spec: any, specIndex: number) => {
+										responseText += `     ${specIndex + 1}. **${spec.name || spec.code}** (${spec.dataType || "N/A"})\n`;
+										if (spec.specs && spec.specs.length > 0) {
+											spec.specs.forEach((subSpec: any) => {
+												if (subSpec.min !== undefined && subSpec.max !== undefined) {
+													responseText += `        Range: ${subSpec.min} - ${subSpec.max}`;
+													if (subSpec.unit) responseText += ` ${subSpec.unit}`;
+													if (subSpec.step) responseText += `, Step: ${subSpec.step}`;
+													responseText += `\n`;
+												}
+											});
+										}
+									});
+								} else if (prop.dataType === "BOOL") {
+									// Handle boolean types with true/false values
+									prop.specs.forEach((spec: any) => {
+										if (spec.name && spec.value !== undefined) {
+											responseText += `     • ${spec.name}: ${spec.value}\n`;
+										}
+									});
+								} else {
+									// Handle numeric types (INT, DOUBLE, etc.)
+									const spec = prop.specs[0];
+									if (spec) {
+										if (spec.min !== undefined && spec.max !== undefined) {
+											responseText += `     Range: ${spec.min} - ${spec.max}`;
+											if (spec.unit) responseText += ` ${spec.unit}`;
+											if (spec.step) responseText += `, Step: ${spec.step}`;
+											responseText += `\n`;
+										}
+									}
+								}
+							}
+
+							responseText += `\n`;
+						});
+
+						responseText += `📊 **Summary**: Found ${properties.length} TSL properties for product \`${productKey}\`\n`;
+						responseText += `💡 This TSL model defines the device capabilities including sensors, controls, and data formats.\n`;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_product_tsl error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting product TSL: ${errorMessage}`,
 							},
 						],
 					};

@@ -606,4 +606,56 @@ export class EUOneAPIUtils {
 			return result;
 		});
 	}
+
+	static async getProductTsl(
+		env: EUOneEnvironment,
+		productKey: string,
+	): Promise<any> {
+		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
+			console.log("🔐 Using token for product TSL (length):", token.length);
+			console.log("📋 Getting TSL for product key:", productKey);
+
+			// Build request body for POST request
+			const requestBody = {
+				productKey: productKey
+			};
+
+			console.log("📝 Product TSL request body:", JSON.stringify(requestBody, null, 2));
+
+			const url = `${env.BASE_URL}/v2/product/tsl/getProp`;
+			console.log("📝 Product TSL request URL:", url);
+
+			const response = await fetch(url, {
+				method: "POST",
+				headers: {
+					Authorization: token, // Direct token, no "Bearer " prefix
+					"Accept-Language": "en-US",
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(requestBody),
+			});
+
+			console.log("📡 Product TSL response status:", response.status);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error("❌ Product TSL HTTP error response:", errorText);
+				throw new Error(`API call failed: HTTP ${response.status} - ${errorText}`);
+			}
+
+			const result = (await response.json()) as any;
+			console.log("📋 Product TSL API response:", JSON.stringify(result, null, 2));
+
+			if (result.code !== 200) {
+				console.error("❌ Product TSL API returned error code:", {
+					code: result.code,
+					msg: result.msg,
+					fullResponse: result
+				});
+				throw new Error(`API call failed: Code ${result.code} - ${result.msg || "Unknown error"}`);
+			}
+
+			return result;
+		});
+	}
 }
