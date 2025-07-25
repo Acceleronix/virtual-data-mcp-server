@@ -12,6 +12,22 @@ export class VirtualDataMCP extends McpAgent {
 		version: "2.0.0",
 	});
 
+	// Helper function to format timestamps for both China timezone and UTC
+	private formatTimestamp(timestamp: number | string): string {
+		const date = new Date(timestamp);
+		const chinaTime = new Intl.DateTimeFormat('zh-CN', {
+			timeZone: 'Asia/Shanghai',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+			hour12: false
+		}).format(date);
+		return `${chinaTime} (China) | ${date.toISOString()} (UTC)`;
+	}
+
 
 	async init() {
 		console.log("🚀 MCP Server starting initialization...");
@@ -346,8 +362,7 @@ export class VirtualDataMCP extends McpAgent {
 							responseText += `   ${access.emoji} Access: ${access.text}\n`;
 
 							if (product.tsCreateTime) {  // FIX: Use 'tsCreateTime' field
-								const createTime = new Date(product.tsCreateTime).toLocaleDateString();
-								responseText += `   📅 Created: ${createTime}\n`;
+								responseText += `   📅 Created: ${this.formatTimestamp(product.tsCreateTime)}\n`;
 							}
 
 							responseText += `\n`;
@@ -443,7 +458,7 @@ export class VirtualDataMCP extends McpAgent {
 					let responseText = `📤 **Device Data Upload Result**\n`;
 					responseText += `Device Key: \`${validDeviceKey}\`\n`;
 					responseText += `Product Key: \`${validProductKey}\`\n`;
-					responseText += `Upload Time: ${new Date(timestamp).toISOString()}\n`;
+					responseText += `Upload Time: ${this.formatTimestamp(timestamp)}\n`;
 					responseText += `Data Properties: ${Object.keys(data).length} properties\n`;
 					responseText += `============================================================\n\n`;
 
@@ -593,13 +608,11 @@ export class VirtualDataMCP extends McpAgent {
 
 							// Timestamps
 							if (device.tsLastOnlineTime) {
-								const lastOnline = new Date(device.tsLastOnlineTime).toLocaleString();
-								responseText += `   ⏰ Last Online: ${lastOnline}\n`;
+								responseText += `   ⏰ Last Online: ${this.formatTimestamp(device.tsLastOnlineTime)}\n`;
 							}
 
 							if (device.tsCreateTime) {
-								const createTime = new Date(device.tsCreateTime).toLocaleString();
-								responseText += `   📅 Created: ${createTime}\n`;
+								responseText += `   📅 Created: ${this.formatTimestamp(device.tsCreateTime)}\n`;
 							}
 
 							// Model and additional info
@@ -866,8 +879,7 @@ export class VirtualDataMCP extends McpAgent {
 					responseText += `   📊 Locate Type: ${locationData.locateType || "N/A"} (${locationData.locateTypeStr || "N/A"})\n`;
 					
 					if (locationData.tsLocateTime) {
-						const locateTime = new Date(locationData.tsLocateTime);
-						responseText += `   ⏰ Last Location Time: ${locateTime.toISOString()}\n`;
+						responseText += `   ⏰ Last Location Time: ${this.formatTimestamp(locationData.tsLocateTime)}\n`;
 					}
 					responseText += `\n`;
 
@@ -1217,18 +1229,15 @@ export class VirtualDataMCP extends McpAgent {
 					}
 
 					if (deviceData.tsLastOnlineTime) {
-						const lastOnlineTime = new Date(deviceData.tsLastOnlineTime);
-						responseText += `   ⏰ Last Online: ${lastOnlineTime.toISOString()}\n`;
+						responseText += `   ⏰ Last Online: ${this.formatTimestamp(deviceData.tsLastOnlineTime)}\n`;
 					}
 					
 					if (deviceData.tsActivationTime) {
-						const activationTime = new Date(deviceData.tsActivationTime);
-						responseText += `   🎯 Activation Time: ${activationTime.toISOString()}\n`;
+						responseText += `   🎯 Activation Time: ${this.formatTimestamp(deviceData.tsActivationTime)}\n`;
 					}
 
 					if (deviceData.dataUpdateTs) {
-						const dataUpdateTime = new Date(deviceData.dataUpdateTs);
-						responseText += `   📊 Data Update Time: ${dataUpdateTime.toISOString()}\n`;
+						responseText += `   📊 Data Update Time: ${this.formatTimestamp(deviceData.dataUpdateTs)}\n`;
 					}
 					responseText += `\n`;
 
@@ -1361,13 +1370,13 @@ export class VirtualDataMCP extends McpAgent {
 						}
 						responseText += `   🔄 Enable Flag: ${useInfo.enableFlag === 1 ? "Enabled" : "Disabled"}\n`;
 						if (useInfo.trialTimeStart) {
-							responseText += `   ⏰ Trial Start: ${new Date(useInfo.trialTimeStart).toISOString()}\n`;
+							responseText += `   ⏰ Trial Start: ${this.formatTimestamp(useInfo.trialTimeStart)}\n`;
 						}
 						if (useInfo.trialTimeEnd) {
-							responseText += `   ⏰ Trial End: ${new Date(useInfo.trialTimeEnd).toISOString()}\n`;
+							responseText += `   ⏰ Trial End: ${this.formatTimestamp(useInfo.trialTimeEnd)}\n`;
 						}
 						if (useInfo.expiredTime) {
-							responseText += `   ⌛ Expired Time: ${new Date(useInfo.expiredTime).toISOString()}\n`;
+							responseText += `   ⌛ Expired Time: ${this.formatTimestamp(useInfo.expiredTime)}\n`;
 						}
 						if (useInfo.onlineDurationMs) {
 							const hours = Math.floor(useInfo.onlineDurationMs / (1000 * 60 * 60));
@@ -1492,8 +1501,7 @@ export class VirtualDataMCP extends McpAgent {
 					responseText += `   🏢 Tenant ID: ${productData.tenantId || "N/A"}\n`;
 					responseText += `   🏷️ Item Code: ${productData.itemCode || "N/A"}\n`;
 					if (productData.tsCreateTime) {
-						const createTime = new Date(productData.tsCreateTime);
-						responseText += `   📅 Created: ${createTime.toISOString()}\n`;
+						responseText += `   📅 Created: ${this.formatTimestamp(productData.tsCreateTime)}\n`;
 					}
 					responseText += `\n`;
 
@@ -1972,14 +1980,12 @@ export class VirtualDataMCP extends McpAgent {
 						const clearFlagText = event.clearFlag === 0 ? "Fault Cleared" : "New Fault";
 						responseText += `   ${clearFlagEmoji} Flag: ${clearFlagText}\n`;
 
-						// Timestamps
+						// Timestamps with China timezone for easy comparison with SaaS platform
 						if (event.tsTime) {
-							const eventTime = new Date(event.tsTime);
-							responseText += `   ⏰ Event Time: ${eventTime.toISOString()}\n`;
+							responseText += `   ⏰ Event Time: ${this.formatTimestamp(event.tsTime)}\n`;
 						}
 						if (event.tsProcessingTime) {
-							const processTime = new Date(event.tsProcessingTime);
-							responseText += `   ⚡ Processed: ${processTime.toISOString()}\n`;
+							responseText += `   ⚡ Processed: ${this.formatTimestamp(event.tsProcessingTime)}\n`;
 						}
 
 						// Location information
@@ -2084,8 +2090,8 @@ export class VirtualDataMCP extends McpAgent {
 					const filters = [];
 					if (eventType) filters.push(`eventType: ${eventType}`);
 					if (handleStatus !== undefined) filters.push(`handleStatus: ${handleStatus === 0 ? "unhandled" : "handled"}`);
-					if (startTime) filters.push(`startTime: ${new Date(startTime).toISOString()}`);
-					if (endTime) filters.push(`endTime: ${new Date(endTime).toISOString()}`);
+					if (startTime) filters.push(`startTime: ${this.formatTimestamp(startTime)}`);
+					if (endTime) filters.push(`endTime: ${this.formatTimestamp(endTime)}`);
 					if (pageNum && pageNum !== 1) filters.push(`pageNum: ${pageNum}`);
 					if (pageSize && pageSize !== 10) filters.push(`pageSize: ${pageSize}`);
 					
