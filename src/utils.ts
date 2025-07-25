@@ -1001,36 +1001,50 @@ export class EUOneAPIUtils {
 	): Promise<any> {
 		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
 			console.log("🔐 Using token for device events (length):", token.length);
+			console.log("🔍 DEBUG: Input options:", JSON.stringify(options, null, 2));
 
-			// Build query parameters - only core parameters, following get_product_list pattern
+			// Build query parameters - ensure correct types as per Swagger spec
 			const queryParams = new URLSearchParams();
-			queryParams.append("deviceId", String(options.deviceId));
 			
-			// Add optional parameters only if they have values
+			// deviceId: integer <int32> (required)
+			queryParams.append("deviceId", String(options.deviceId));
+			console.log("✅ Added deviceId (int32):", options.deviceId);
+			
+			// eventType: string (optional) - only add if provided
 			if (options.eventType) {
 				queryParams.append("eventType", options.eventType);
+				console.log("✅ Added eventType (string):", options.eventType);
 			}
 			
-			// Set pagination parameters with defaults (like get_product_list)
-			const pageNum = options.pageNum ? String(options.pageNum) : "1";
-			const pageSize = options.pageSize ? String(options.pageSize) : "10";
+			// pageNum: integer <int32> (optional, default: 1) - only add if provided
+			if (options.pageNum !== undefined) {
+				queryParams.append("pageNum", String(options.pageNum));
+				console.log("✅ Added pageNum (int32):", options.pageNum);
+			}
 			
-			queryParams.append("pageNum", pageNum);
-			queryParams.append("pageSize", pageSize);
+			// pageSize: integer <int32> (optional, default: 10) - only add if provided  
+			if (options.pageSize !== undefined) {
+				queryParams.append("pageSize", String(options.pageSize));
+				console.log("✅ Added pageSize (int32):", options.pageSize);
+			}
 
-			// Add additional optional parameters only if they have values
+			// Additional optional parameters - only add if provided
 			if (options.startTime !== undefined) {
 				queryParams.append("startTime", String(options.startTime));
+				console.log("✅ Added startTime (int64):", options.startTime);
 			}
 			if (options.endTime !== undefined) {
 				queryParams.append("endTime", String(options.endTime));
+				console.log("✅ Added endTime (int64):", options.endTime);
 			}
 			if (options.handleStatus !== undefined) {
 				queryParams.append("handleStatus", String(options.handleStatus));
+				console.log("✅ Added handleStatus (int32):", options.handleStatus);
 			}
 
 			const url = `${env.BASE_URL}/v2/device/event/log?${queryParams.toString()}`;
 			console.log("📝 Device events request URL:", url);
+			console.log("🔍 Query parameters string:", queryParams.toString());
 
 			const response = await fetch(url, {
 				method: "GET",
