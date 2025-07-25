@@ -43,6 +43,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addProductListTool(env);
 		console.log("✅ Product list tools registered");
 
+		// Product details tool
+		this.addProductDetailsTool(env);
+		console.log("✅ Product details tool registered");
+
 		// Upload device data tool
 		this.addUploadDeviceDataTool(env);
 		console.log("✅ Upload device data tool registered");
@@ -1195,7 +1199,7 @@ export class VirtualDataMCP extends McpAgent {
 						3: "🔴 Fault",
 						4: "🔴 Fault + Alarm"
 					};
-					const runningStatus = runningStatusMap[deviceData.runningStatus] || `❓ Unknown (${deviceData.runningStatus})`;
+					const runningStatus = runningStatusMap[deviceData.runningStatus as keyof typeof runningStatusMap] || `❓ Unknown (${deviceData.runningStatus})`;
 					responseText += `   ⚡ Running Status: ${runningStatus}\n`;
 
 					const activationStatus = deviceData.activationStatus === 1 ? "✅ Activated" : 
@@ -1227,7 +1231,7 @@ export class VirtualDataMCP extends McpAgent {
 						1: "🌐 Gateway Device", 
 						2: "📡 Gateway Sub-device"
 					};
-					const accessType = accessTypeMap[deviceData.accessType] || `❓ Unknown (${deviceData.accessType})`;
+					const accessType = accessTypeMap[deviceData.accessType as keyof typeof accessTypeMap] || `❓ Unknown (${deviceData.accessType})`;
 					responseText += `   🔌 Access Type: ${accessType}\n`;
 
 					const netWayMap = {
@@ -1236,7 +1240,7 @@ export class VirtualDataMCP extends McpAgent {
 						3: "📻 NB-IoT",
 						4: "🔗 Other"
 					};
-					const netWay = netWayMap[deviceData.netWay] || `❓ Unknown (${deviceData.netWay})`;
+					const netWay = netWayMap[deviceData.netWay as keyof typeof netWayMap] || `❓ Unknown (${deviceData.netWay})`;
 					responseText += `   🌐 Network Type: ${netWay}\n`;
 
 					if (deviceData.modelSpec) {
@@ -1248,7 +1252,7 @@ export class VirtualDataMCP extends McpAgent {
 						2: "📊 JSON",
 						3: "🔢 Binary"
 					};
-					const dataFormat = dataFormatMap[deviceData.dataFormat] || `❓ Unknown (${deviceData.dataFormat})`;
+					const dataFormat = dataFormatMap[deviceData.dataFormat as keyof typeof dataFormatMap] || `❓ Unknown (${deviceData.dataFormat})`;
 					responseText += `   📝 Data Format: ${dataFormat}\n`;
 					responseText += `\n`;
 
@@ -1332,8 +1336,8 @@ export class VirtualDataMCP extends McpAgent {
 							responseText += `      • Code: \`${field.filedCode || "N/A"}\`\n`;
 							responseText += `      • Value: ${field.filedValue || "N/A"}\n`;
 							if (field.dataType) {
-								const dataTypeMap = {1: "Text", 2: "Date", 3: "Enum"};
-								responseText += `      • Type: ${dataTypeMap[field.dataType] || "Unknown"}\n`;
+								const dataTypeMap: Record<number, string> = {1: "Text", 2: "Date", 3: "Enum"};
+								responseText += `      • Type: ${dataTypeMap[field.dataType as keyof typeof dataTypeMap] || "Unknown"}\n`;
 							}
 							responseText += `      • Required: ${field.isRequired === 1 ? "Yes" : "No"}\n`;
 						});
@@ -1370,7 +1374,7 @@ export class VirtualDataMCP extends McpAgent {
 						additionalInfo.push(`Renewal Status: ${deviceData.renewalStatus}`);
 					}
 					if (deviceData.checkResult !== null) {
-						const checkResultMap = {
+						const checkResultMap: Record<string | number, string> = {
 							1: "Normal",
 							"-1": "Device not synced to SaaS",
 							"-2": "BindingCode validation failed"
@@ -1420,6 +1424,219 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting device details: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addProductDetailsTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_product_details",
+			"Get comprehensive product information including configuration, settings, and extended attributes",
+			{
+				type: "object",
+				properties: {
+					productId: {
+						type: "number",
+						description: "Product ID to get detailed information for (required, e.g., 2989)"
+					},
+					vendorId: {
+						type: "number",
+						description: "Vendor ID for the product (optional, e.g., 110)"
+					}
+				},
+				required: ["productId"],
+				additionalProperties: false,
+			},
+			async (args) => {
+				try {
+					console.log("🚀 get_product_details called with args:", JSON.stringify(args, null, 2));
+
+					// Parameter validation
+					if (!args || typeof args.productId !== "number") {
+						throw new Error("productId is required and must be a number");
+					}
+
+					const { productId, vendorId } = args;
+
+					console.log("✅ Using validated parameters:", { productId, vendorId });
+
+					// Call the API using the new getProductInfo method
+					const productResult = await EUOneAPIUtils.getProductInfo(env, {
+						productId,
+						vendorId
+					});
+
+					console.log("✅ Product details data retrieved successfully");
+
+					// Format the response
+					const productData = productResult.data;
+					
+					if (!productData) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `❌ No product details found for product ID: ${productId}`,
+								},
+							],
+						};
+					}
+					
+					let responseText = `📦 **Product Details Information**\n`;
+					responseText += `Product ID: \`${productData.id || productId}\`\n`;
+					responseText += `Product Name: \`${productData.productName || "N/A"}\`\n`;
+					responseText += `Product Key: \`${productData.productKey || "N/A"}\`\n`;
+					responseText += `============================================================\n\n`;
+
+					// Basic Information
+					responseText += `📋 **Basic Information**\n`;
+					responseText += `   🏭 Vendor ID: ${productData.vendorId || "N/A"}\n`;
+					responseText += `   🏢 Tenant ID: ${productData.tenantId || "N/A"}\n`;
+					responseText += `   🏷️ Item Code: ${productData.itemCode || "N/A"}\n`;
+					if (productData.tsCreateTime) {
+						const createTime = new Date(productData.tsCreateTime);
+						responseText += `   📅 Created: ${createTime.toISOString()}\n`;
+					}
+					responseText += `\n`;
+
+					// Configuration
+					responseText += `🔧 **Configuration**\n`;
+					const accessTypeMap = {
+						0: "📱 Direct Device",
+						1: "🌐 Gateway Device", 
+						2: "📡 Gateway Sub-device"
+					};
+					const accessType = accessTypeMap[productData.accessType as keyof typeof accessTypeMap] || `❓ Unknown (${productData.accessType})`;
+					responseText += `   🔌 Access Type: ${accessType}\n`;
+
+					const netWayMap = {
+						1: "📶 WiFi",
+						2: "📡 Cellular",
+						3: "📻 NB-IoT",
+						4: "🔗 Other"
+					};
+					const netWay = netWayMap[productData.netWay as keyof typeof netWayMap] || `❓ Unknown (${productData.netWay})`;
+					responseText += `   🌐 Network Type: ${netWay}\n`;
+
+					const dataFormatMap = {
+						1: "🔤 Text",
+						2: "📊 JSON",
+						3: "🔢 Binary"
+					};
+					const dataFormat = dataFormatMap[productData.dataFormat as keyof typeof dataFormatMap] || `❓ Unknown (${productData.dataFormat})`;
+					responseText += `   📝 Data Format: ${dataFormat}\n`;
+
+					const gatewayTypeMap = {
+						0: "📱 Device",
+						1: "🌐 Gateway"
+					};
+					const gatewayType = gatewayTypeMap[productData.gatewayType as keyof typeof gatewayTypeMap] || `❓ Unknown (${productData.gatewayType})`;
+					responseText += `   🏗️ Gateway Type: ${gatewayType}\n`;
+					responseText += `\n`;
+
+					// Status and Release
+					responseText += `📊 **Status & Release**\n`;
+					const releaseStatusMap = {
+						0: "❌ Unpublished",
+						1: "✅ Published",
+						2: "✅ Published"
+					};
+					const releaseStatus = releaseStatusMap[productData.releaseStatus as keyof typeof releaseStatusMap] || `❓ Unknown (${productData.releaseStatus})`;
+					responseText += `   📈 Release Status: ${releaseStatus}\n`;
+					responseText += `\n`;
+
+					// Industry and Scene
+					responseText += `🏭 **Industry Information**\n`;
+					responseText += `   🏷️ Industry Scene Code: ${productData.industrySceneCode || "N/A"}\n`;
+					responseText += `   🆔 Industry Scene ID: ${productData.industrySceneId || "N/A"}\n`;
+					responseText += `   🤖 AI Product: ${productData.isAiProduct ? "Yes" : "No"}\n`;
+					responseText += `\n`;
+
+					// Storage and Data
+					responseText += `💾 **Storage & Data**\n`;
+					responseText += `   📦 Store Size: ${productData.storeSize || "N/A"} ${productData.storeUnit || ""}\n`;
+					responseText += `   ⏳ Storage Duration: ${productData.storageDuration || "N/A"} days\n`;
+					if (productData.historyDataAddSize !== null && productData.historyDataAddSize !== undefined) {
+						responseText += `   📈 History Data Size: ${productData.historyDataAddSize} bytes\n`;
+					}
+					if (productData.yesterdayDataSize !== null && productData.yesterdayDataSize !== undefined) {
+						responseText += `   📊 Yesterday Data Size: ${productData.yesterdayDataSize} bytes\n`;
+					}
+					responseText += `\n`;
+
+					// Queue Information
+					const hasQueueInfo = productData.queueId || productData.queueName || productData.queueStatus !== undefined;
+					if (hasQueueInfo) {
+						responseText += `📬 **Queue Information**\n`;
+						if (productData.queueId) {
+							responseText += `   🆔 Queue ID: ${productData.queueId}\n`;
+						}
+						if (productData.queueName) {
+							responseText += `   📛 Queue Name: ${productData.queueName}\n`;
+						}
+						if (productData.queueStatus !== undefined) {
+							const queueStatusMap = {
+								0: "❌ Inactive",
+								1: "✅ Active"
+							};
+							const queueStatus = queueStatusMap[productData.queueStatus as keyof typeof queueStatusMap] || `❓ Unknown (${productData.queueStatus})`;
+							responseText += `   📊 Queue Status: ${queueStatus}\n`;
+						}
+						responseText += `\n`;
+					}
+
+					// Additional Information
+					const additionalInfo = [];
+					if (productData.connProtocol !== null && productData.connProtocol !== undefined) {
+						additionalInfo.push(`Connection Protocol: ${productData.connProtocol}`);
+					}
+					if (productData.fileUrl) {
+						additionalInfo.push(`File URL: ${productData.fileUrl}`);
+					}
+					if (productData.subscribeId) {
+						additionalInfo.push(`Subscribe ID: ${productData.subscribeId}`);
+					}
+					if (productData.qrCodeType !== null && productData.qrCodeType !== undefined) {
+						additionalInfo.push(`QR Code Type: ${productData.qrCodeType}`);
+					}
+
+					if (additionalInfo.length > 0) {
+						responseText += `ℹ️ **Additional Information**\n`;
+						additionalInfo.forEach(info => {
+							responseText += `   • ${info}\n`;
+						});
+						responseText += `\n`;
+					}
+
+					responseText += `📊 **Summary**: Successfully retrieved comprehensive details for product \`${productData.productName || productId}\`\n`;
+					responseText += `🏭 Vendor: ${productData.vendorId || "N/A"} | Industry: ${productData.industrySceneCode || "N/A"}\n`;
+					responseText += `📈 Status: ${releaseStatus} | ${accessType}\n`;
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_product_details error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting product details: ${errorMessage}`,
 							},
 						],
 					};
