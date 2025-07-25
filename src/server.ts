@@ -55,6 +55,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addProductTslTool(env);
 		console.log("✅ Product TSL tool registered");
 
+		// Device location tool
+		this.addDeviceLocationTool(env);
+		console.log("✅ Device location tool registered");
+
 		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
@@ -780,6 +784,191 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting product TSL: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addDeviceLocationTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_device_location",
+			"Get device location information including GPS coordinates, address, and positioning details",
+			{
+				type: "object",
+				properties: {
+					deviceId: {
+						type: "number",
+						description: "Device ID to get location information for (required, e.g., 9644)",
+					},
+				},
+				required: ["deviceId"],
+				additionalProperties: false,
+			},
+			async ({ deviceId }) => {
+				console.log("🔥 get_device_location function ENTRY - parameters:", { deviceId });
+				
+				try {
+					console.log("🚀 get_device_location called with parameters:", { deviceId });
+
+					// Parameter validation
+					if (!deviceId || typeof deviceId !== "number") {
+						throw new Error("deviceId is required and must be a number");
+					}
+
+					console.log("✅ Using validated parameters:", { deviceId });
+
+					// Call the API using the new getDeviceLocation method
+					const locationResult = await EUOneAPIUtils.getDeviceLocation(env, {
+						deviceId
+					});
+
+					console.log("✅ Device location data retrieved successfully");
+
+					// Format the response
+					const locationData = locationResult.data;
+					
+					if (!locationData) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `❌ No location data found for device ID: ${deviceId}`,
+								},
+							],
+						};
+					}
+					
+					let responseText = `📍 **Device Location Information**\n`;
+					responseText += `Device ID: \`${locationData.deviceId || deviceId}\`\n`;
+					responseText += `Device Name: \`${locationData.deviceName || "N/A"}\`\n`;
+					responseText += `Device Key: \`${locationData.deviceKey || "N/A"}\`\n`;
+					responseText += `Product Key: \`${locationData.productKey || "N/A"}\`\n`;
+					responseText += `============================================================\n\n`;
+
+					// Location Mode and Type
+					responseText += `📡 **Positioning Information**\n`;
+					responseText += `   🔧 Locate Mode: ${locationData.locateMode || "N/A"}\n`;
+					responseText += `   📊 Locate Type: ${locationData.locateType || "N/A"} (${locationData.locateTypeStr || "N/A"})\n`;
+					
+					if (locationData.tsLocateTime) {
+						const locateTime = new Date(locationData.tsLocateTime);
+						responseText += `   ⏰ Last Location Time: ${locateTime.toISOString()}\n`;
+					}
+					responseText += `\n`;
+
+					// GPS Coordinates
+					responseText += `🌐 **GPS Coordinates**\n`;
+					if (locationData.wgsLng && locationData.wgsLat) {
+						responseText += `   🗺️ WGS84: ${locationData.wgsLat}, ${locationData.wgsLng}\n`;
+					}
+					if (locationData.gcjLng && locationData.gcjLat) {
+						responseText += `   🇨🇳 GCJ02: ${locationData.gcjLat}, ${locationData.gcjLng}\n`;
+					}
+					if (locationData.bdLng && locationData.bdLat) {
+						responseText += `   🅱️ Baidu: ${locationData.bdLat}, ${locationData.bdLng}\n`;
+					}
+					responseText += `\n`;
+
+					// Address Information
+					if (locationData.address || locationData.detailAddress) {
+						responseText += `📍 **Address Information**\n`;
+						if (locationData.address) {
+							responseText += `   🏠 Address: ${locationData.address}\n`;
+						}
+						if (locationData.detailAddress) {
+							responseText += `   🏠 Detail Address: ${locationData.detailAddress}\n`;
+						}
+						responseText += `\n`;
+					}
+
+					// Device Status
+					responseText += `📱 **Device Status**\n`;
+					const onlineStatus = locationData.onlineStatus === 1 ? "🟢 Online" : "🔴 Offline";
+					responseText += `   📶 Online Status: ${onlineStatus}\n`;
+					responseText += `\n`;
+
+					// Technical Details
+					const technicalDetails = [];
+					if (locationData.hdop !== null && locationData.hdop !== undefined) {
+						technicalDetails.push(`HDOP: ${locationData.hdop}`);
+					}
+					if (locationData.satellites !== null && locationData.satellites !== undefined) {
+						technicalDetails.push(`Satellites: ${locationData.satellites}`);
+					}
+					if (locationData.soc !== null && locationData.soc !== undefined) {
+						technicalDetails.push(`SOC: ${locationData.soc}`);
+					}
+					if (locationData.speed !== null && locationData.speed !== undefined) {
+						technicalDetails.push(`Speed: ${locationData.speed}`);
+					}
+					if (locationData.height !== null && locationData.height !== undefined) {
+						technicalDetails.push(`Height: ${locationData.height}`);
+					}
+					if (locationData.ggaStatus !== null && locationData.ggaStatus !== undefined) {
+						technicalDetails.push(`GGA Status: ${locationData.ggaStatus}`);
+					}
+
+					if (technicalDetails.length > 0) {
+						responseText += `🔧 **Technical Details**\n`;
+						technicalDetails.forEach(detail => {
+							responseText += `   • ${detail}\n`;
+						});
+						responseText += `\n`;
+					}
+
+					// Mount Information
+					if (locationData.mountId || locationData.mountName) {
+						responseText += `🏔️ **Mount Information**\n`;
+						if (locationData.mountId) {
+							responseText += `   🆔 Mount ID: ${locationData.mountId}\n`;
+						}
+						if (locationData.mountName) {
+							responseText += `   📛 Mount Name: ${locationData.mountName}\n`;
+						}
+						responseText += `\n`;
+					}
+
+					// Additional Information
+					if (locationData.productFileUrl || locationData.localPhoto) {
+						responseText += `📸 **Media Information**\n`;
+						if (locationData.productFileUrl) {
+							responseText += `   🔗 Product File URL: ${locationData.productFileUrl}\n`;
+						}
+						if (locationData.localPhoto) {
+							responseText += `   📷 Local Photo: ${locationData.localPhoto}\n`;
+						}
+						responseText += `\n`;
+					}
+
+					responseText += `📊 **Summary**: Successfully retrieved location information for device \`${locationData.deviceName || deviceId}\`\n`;
+					if (locationData.address) {
+						responseText += `📍 Current location: ${locationData.address}\n`;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_device_location error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting device location: ${errorMessage}`,
 							},
 						],
 					};
