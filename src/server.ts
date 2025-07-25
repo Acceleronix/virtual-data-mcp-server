@@ -75,6 +75,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addDevicePropertiesTool(env);
 		console.log("✅ Device properties tool registered");
 
+		// Device events tool
+		this.addDeviceEventsTool(env);
+		console.log("✅ Device events tool registered");
+
 		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
@@ -1867,6 +1871,261 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting device properties: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addDeviceEventsTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_device_events",
+			{
+				deviceId: z.number().describe("Device ID to get event logs for (required, e.g., 10997)"),
+				eventType: z.enum(["WARN", "ERROR"]).optional().describe("Event type filter (optional): WARN=warning events, ERROR=error events"),
+				pageNum: z.number().optional().describe("Page number starting from 1 (optional, default: 1)"),
+				pageSize: z.number().optional().describe("Number of events per page, max 100 (optional, default: 10)"),
+				analysis: z.boolean().optional().describe("Whether to parse/analyze event data (optional)"),
+				endTime: z.number().optional().describe("End time filter as timestamp in milliseconds (optional)"),
+				eventName: z.string().optional().describe("Filter by specific event name (optional)"),
+				handleStatus: z.union([z.literal(0), z.literal(1)]).optional().describe("Handle status filter (optional): 0=unhandled, 1=handled"),
+				startTime: z.number().optional().describe("Start time filter as timestamp in milliseconds (optional)")
+			},
+			async ({ deviceId, eventType, pageNum, pageSize, analysis, endTime, eventName, handleStatus, startTime }) => {
+				console.log("🔥 get_device_events function ENTRY - parameters:", { 
+					deviceId, eventType, pageNum, pageSize, analysis, endTime, eventName, handleStatus, startTime 
+				});
+				
+				try {
+					console.log("🚀 get_device_events called with parameters:", { 
+						deviceId, eventType, pageNum, pageSize, eventName, handleStatus 
+					});
+
+					// Parameter validation
+					if (!deviceId || typeof deviceId !== "number") {
+						throw new Error("deviceId is required and must be a number");
+					}
+
+					console.log("✅ Using validated parameters:", { 
+						deviceId, 
+						eventType, 
+						pageNum,
+						pageSize,
+						analysis,
+						endTime,
+						eventName, 
+						handleStatus,
+						startTime
+					});
+
+					// Call the API using the new getDeviceEvents method
+					const eventsResult = await EUOneAPIUtils.getDeviceEvents(env, {
+						deviceId,
+						eventType,
+						pageNum,
+						pageSize,
+						analysis,
+						endTime,
+						eventName,
+						handleStatus,
+						startTime
+					});
+
+					console.log("✅ Device events data retrieved successfully");
+
+					// Format the response
+					const eventsData = eventsResult.rows || [];
+					const total = eventsResult.total || 0;
+					
+					if (!eventsData || eventsData.length === 0) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `❌ No device events found for device ID: ${deviceId}`,
+								},
+							],
+						};
+					}
+					
+					let responseText = `📅 **Device Event Logs**\n`;
+					responseText += `Device ID: \`${deviceId}\`\n`;
+					responseText += `Found ${eventsData.length} events (Total: ${total})\n`;
+					if (total > eventsData.length) {
+						responseText += `💡 Showing ${eventsData.length} of ${total} events. Use pageNum and pageSize for pagination.\n`;
+					}
+					responseText += `============================================================\n\n`;
+
+					// Process each event
+					eventsData.forEach((event: any, eventIndex: number) => {
+						// Event header
+						responseText += `📋 **Event ${eventIndex + 1}: ${event.eventName || "Unnamed Event"}**\n`;
+						responseText += `   🆔 ID: ${event.id || "N/A"}\n`;
+						responseText += `   🔧 Code: \`${event.eventCode || "N/A"}\`\n`;
+						responseText += `   📱 Device: ${event.deviceName || "N/A"} (\`${event.deviceKey || "N/A"}\`)\n`;
+						
+						// Event type and status
+						const eventTypeEmoji = event.eventType === "ERROR" ? "🔴" : event.eventType === "WARN" ? "🟡" : "🔵";
+						responseText += `   ${eventTypeEmoji} Type: ${event.eventType || "N/A"}\n`;
+						
+						const handleStatusEmoji = event.handleStatus === 1 ? "✅" : "⏳";
+						const handleStatusText = event.handleStatus === 1 ? "Handled" : "Unhandled";
+						responseText += `   ${handleStatusEmoji} Status: ${handleStatusText}\n`;
+						
+						const clearFlagEmoji = event.clearFlag === 0 ? "🔧" : "🆕";
+						const clearFlagText = event.clearFlag === 0 ? "Fault Cleared" : "New Fault";
+						responseText += `   ${clearFlagEmoji} Flag: ${clearFlagText}\n`;
+
+						// Timestamps
+						if (event.tsTime) {
+							const eventTime = new Date(event.tsTime);
+							responseText += `   ⏰ Event Time: ${eventTime.toISOString()}\n`;
+						}
+						if (event.tsProcessingTime) {
+							const processTime = new Date(event.tsProcessingTime);
+							responseText += `   ⚡ Processed: ${processTime.toISOString()}\n`;
+						}
+
+						// Location information
+						if (event.coordinate || event.detailAddress || event.mountAddress) {
+							responseText += `   📍 **Location**:\n`;
+							if (event.coordinate) {
+								responseText += `      🗺️ Coordinates: ${event.coordinate} (${event.coordinateSystem || "Unknown"})\n`;
+							}
+							if (event.detailAddress) {
+								responseText += `      🏠 Detail Address: ${event.detailAddress}\n`;
+							}
+							if (event.mountAddress) {
+								responseText += `      🏔️ Mount Address: ${event.mountAddress}\n`;
+							}
+						}
+
+						// Event data
+						if (event.eventData) {
+							try {
+								const eventDataObj = JSON.parse(event.eventData);
+								responseText += `   📊 **Event Data**:\n`;
+								if (eventDataObj.data?.kv) {
+									Object.entries(eventDataObj.data.kv).forEach(([key, value]) => {
+										responseText += `      • ${key}: ${value}\n`;
+									});
+								}
+								if (eventDataObj.ticket) {
+									responseText += `      🎫 Ticket: ${eventDataObj.ticket}\n`;
+								}
+								if (eventDataObj.packetId) {
+									responseText += `      📦 Packet ID: ${eventDataObj.packetId}\n`;
+								}
+							} catch (e) {
+								responseText += `   📊 **Event Data**: ${event.eventData.substring(0, 200)}${event.eventData.length > 200 ? "..." : ""}\n`;
+							}
+						}
+
+						// Device status at event time
+						if (event.deviceStatus && (event.deviceStatus.outputParams || event.deviceStatus.otherParams)) {
+							responseText += `   📱 **Device Status at Event Time**:\n`;
+							
+							// Output parameters (related to the event)
+							if (event.deviceStatus.outputParams && event.deviceStatus.outputParams.length > 0) {
+								responseText += `      🎯 **Event-related Properties**:\n`;
+								event.deviceStatus.outputParams.forEach((param: any) => {
+									responseText += `         • ${param.name || param.code}: ${param.upValue !== null ? param.upValue : "N/A"}`;
+									if (param.specs && param.specs[0] && param.specs[0].unit) {
+										responseText += ` ${param.specs[0].unit}`;
+									}
+									responseText += `\n`;
+								});
+							}
+
+							// Other parameters (device context)
+							if (event.deviceStatus.otherParams && event.deviceStatus.otherParams.length > 0) {
+								responseText += `      📊 **Other Device Properties** (${event.deviceStatus.otherParams.length} properties):\n`;
+								event.deviceStatus.otherParams.slice(0, 3).forEach((param: any) => {
+									responseText += `         • ${param.name || param.code}: ${param.upValue !== null ? param.upValue : "N/A"}`;
+									if (param.specs && param.specs[0] && param.specs[0].unit) {
+										responseText += ` ${param.specs[0].unit}`;
+									}
+									responseText += `\n`;
+								});
+								if (event.deviceStatus.otherParams.length > 3) {
+									responseText += `         ... and ${event.deviceStatus.otherParams.length - 3} more properties\n`;
+								}
+							}
+						}
+
+						// Additional metadata
+						const additionalInfo = [];
+						if (event.productId) {
+							additionalInfo.push(`Product ID: ${event.productId}`);
+						}
+						if (event.ticket) {
+							additionalInfo.push(`Ticket: ${event.ticket}`);
+						}
+						if (event.orderId) {
+							additionalInfo.push(`Order ID: ${event.orderId}`);
+						}
+						if (event.eventSpecsName) {
+							additionalInfo.push(`Event Specs: ${event.eventSpecsName}`);
+						}
+						if (event.remark) {
+							additionalInfo.push(`Remark: ${event.remark}`);
+						}
+						if (event.extraId) {
+							additionalInfo.push(`Extra ID: ${event.extraId}`);
+						}
+
+						if (additionalInfo.length > 0) {
+							responseText += `   ℹ️ **Additional Info**: ${additionalInfo.join(", ")}\n`;
+						}
+
+						responseText += `\n`;
+					});
+
+					// Summary and pagination info
+					responseText += `📊 **Summary**: Retrieved ${eventsData.length} events for device \`${deviceId}\`\n`;
+					
+					// Filter summary
+					const filters = [];
+					if (eventType) filters.push(`eventType: ${eventType}`);
+					if (eventName) filters.push(`eventName: ${eventName}`);
+					if (handleStatus !== undefined) filters.push(`handleStatus: ${handleStatus === 0 ? "unhandled" : "handled"}`);
+					if (startTime) filters.push(`startTime: ${new Date(startTime).toISOString()}`);
+					if (endTime) filters.push(`endTime: ${new Date(endTime).toISOString()}`);
+					if (analysis !== undefined) filters.push(`analysis: ${analysis}`);
+					
+					if (filters.length > 0) {
+						responseText += `🔍 **Applied Filters**: ${filters.join(", ")}\n`;
+					}
+
+					// Pagination info
+					if (total > eventsData.length) {
+						responseText += `📄 **Pagination**: Page ${pageNum || 1} of ${Math.ceil(total / (pageSize || 10))}\n`;
+						responseText += `💡 Use pageNum and pageSize parameters for more results\n`;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_device_events error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting device events: ${errorMessage}`,
 							},
 						],
 					};
