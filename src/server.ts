@@ -1435,34 +1435,20 @@ export class VirtualDataMCP extends McpAgent {
 	private addProductDetailsTool(env: EUOneEnvironment) {
 		this.server.tool(
 			"get_product_details",
-			"Get comprehensive product information including configuration, settings, and extended attributes",
 			{
-				type: "object",
-				properties: {
-					productId: {
-						type: "number",
-						description: "Product ID to get detailed information for (required, e.g., 2989)"
-					},
-					vendorId: {
-						type: "number",
-						description: "Vendor ID for the product (optional, e.g., 110)"
-					}
-				},
-				required: ["productId"],
-				additionalProperties: false,
+				productId: z.number().describe("Product ID to get detailed information for (required, e.g., 2989)"),
+				vendorId: z.number().optional().describe("Vendor ID for the product (optional, e.g., 110)")
 			},
-			async (args) => {
+			async ({ productId, vendorId }) => {
+				console.log("🔥 get_product_details function ENTRY - parameters:", { productId, vendorId });
+				
 				try {
-					console.log("🚀 get_product_details called with args:", JSON.stringify(args, null, 2));
+					console.log("🚀 get_product_details called with parameters:", { productId, vendorId });
 
 					// Parameter validation
-					if (!args || typeof args.productId !== "number") {
+					if (!productId || typeof productId !== "number") {
 						throw new Error("productId is required and must be a number");
 					}
-
-					const { productId, vendorId } = args;
-
-					console.log("✅ Using validated parameters:", { productId, vendorId });
 
 					// Call the API using the new getProductInfo method
 					const productResult = await EUOneAPIUtils.getProductInfo(env, {
