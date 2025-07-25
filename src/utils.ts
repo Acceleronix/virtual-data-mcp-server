@@ -908,4 +908,83 @@ export class EUOneAPIUtils {
 		});
 	}
 
+	static async getDeviceProperties(
+		env: EUOneEnvironment,
+		options: {
+			deviceId: number;
+			showHide?: boolean;
+			filterDisplay?: boolean;
+			propCode?: string;
+			propName?: string;
+			tslSubType?: "ALL" | "WRITEABLE" | "READABLE";
+			displayControl?: boolean;
+			enableControl?: boolean;
+		},
+	): Promise<any> {
+		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
+			console.log("🔐 Using token for device properties (length):", token.length);
+
+			// Build query parameters 
+			const queryParams = new URLSearchParams();
+			queryParams.append("deviceId", String(options.deviceId));
+			
+			// Add optional parameters
+			if (options.showHide !== undefined) {
+				queryParams.append("showHide", String(options.showHide));
+			}
+			if (options.filterDisplay !== undefined) {
+				queryParams.append("filterDisplay", String(options.filterDisplay));
+			}
+			if (options.propCode) {
+				queryParams.append("propCode", options.propCode);
+			}
+			if (options.propName) {
+				queryParams.append("propName", options.propName);
+			}
+			if (options.tslSubType) {
+				queryParams.append("tslSubType", options.tslSubType);
+			}
+			if (options.displayControl !== undefined) {
+				queryParams.append("displayControl", String(options.displayControl));
+			}
+			if (options.enableControl !== undefined) {
+				queryParams.append("enableControl", String(options.enableControl));
+			}
+
+			const url = `${env.BASE_URL}/v2/device/tsl/properties/label?${queryParams.toString()}`;
+			console.log("📝 Device properties request URL:", url);
+
+			const response = await fetch(url, {
+				method: "GET",
+				headers: {
+					Authorization: token, // Direct token, no "Bearer " prefix
+					"Accept-Language": "en-US",
+					"Content-Type": "application/json",
+				},
+			});
+
+			console.log("📡 Device properties response status:", response.status);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error("❌ Device properties HTTP error response:", errorText);
+				throw new Error(`API call failed: HTTP ${response.status} - ${errorText}`);
+			}
+
+			const result = (await response.json()) as any;
+			console.log("🔧 Device properties API response:", JSON.stringify(result, null, 2));
+
+			if (result.code !== 200) {
+				console.error("❌ Device properties API returned error code:", {
+					code: result.code,
+					msg: result.msg,
+					fullResponse: result
+				});
+				throw new Error(`API call failed: Code ${result.code} - ${result.msg || "Unknown error"}`);
+			}
+
+			return result;
+		});
+	}
+
 }

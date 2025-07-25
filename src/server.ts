@@ -71,6 +71,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addDeviceDetailsTool(env);
 		console.log("✅ Device details tool registered");
 
+		// Device properties tool
+		this.addDevicePropertiesTool(env);
+		console.log("✅ Device properties tool registered");
+
 		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
@@ -1623,6 +1627,246 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting product details: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addDevicePropertiesTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_device_properties",
+			{
+				deviceId: z.number().describe("Device ID to get TSL properties for (required, e.g., 10997)"),
+				showHide: z.boolean().optional().describe("Whether to show hidden labels: true=show all, false=hide hidden labels (optional, default: true)"),
+				filterDisplay: z.boolean().optional().describe("Whether to filter display properties (optional, default: true)"),
+				propCode: z.string().optional().describe("Filter by specific property code (optional)"),
+				propName: z.string().optional().describe("Filter by specific property name (optional)"),
+				tslSubType: z.enum(["ALL", "WRITEABLE", "READABLE"]).optional().describe("TSL read/write type filter (optional): ALL=all properties, WRITEABLE=writable properties, READABLE=readable properties"),
+				displayControl: z.boolean().optional().describe("Filter by display control flag (optional)"),
+				enableControl: z.boolean().optional().describe("Filter by enable control flag (optional)")
+			},
+			async ({ deviceId, showHide, filterDisplay, propCode, propName, tslSubType, displayControl, enableControl }) => {
+				console.log("🔥 get_device_properties function ENTRY - parameters:", { 
+					deviceId, showHide, filterDisplay, propCode, propName, tslSubType, displayControl, enableControl 
+				});
+				
+				try {
+					console.log("🚀 get_device_properties called with parameters:", { 
+						deviceId, showHide, filterDisplay, propCode, propName, tslSubType 
+					});
+
+					// Parameter validation
+					if (!deviceId || typeof deviceId !== "number") {
+						throw new Error("deviceId is required and must be a number");
+					}
+
+					console.log("✅ Using validated parameters:", { 
+						deviceId, 
+						showHide, 
+						filterDisplay,
+						propCode,
+						propName, 
+						tslSubType,
+						displayControl,
+						enableControl
+					});
+
+					// Call the API using the new getDeviceProperties method
+					const propertiesResult = await EUOneAPIUtils.getDeviceProperties(env, {
+						deviceId,
+						showHide,
+						filterDisplay,
+						propCode,
+						propName,
+						tslSubType,
+						displayControl,
+						enableControl
+					});
+
+					console.log("✅ Device properties data retrieved successfully");
+
+					// Format the response
+					const propertiesData = propertiesResult.data || [];
+					
+					if (!propertiesData || propertiesData.length === 0) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `❌ No device properties found for device ID: ${deviceId}`,
+								},
+							],
+						};
+					}
+					
+					let responseText = `🔧 **Device Properties & Labels**\n`;
+					responseText += `Device ID: \`${deviceId}\`\n`;
+					responseText += `Found ${propertiesData.length} label group(s)\n`;
+					responseText += `============================================================\n\n`;
+
+					// Process each label group
+					propertiesData.forEach((labelGroup: any, groupIndex: number) => {
+						const labelInfo = labelGroup.key;
+						const properties = labelGroup.value || [];
+
+						// Label Information
+						responseText += `📋 **Label Group ${groupIndex + 1}: ${labelInfo.productLabel || "Unknown Label"}**\n`;
+						responseText += `   🆔 Product Label ID: ${labelInfo.productLabelId !== undefined ? labelInfo.productLabelId : "N/A"}\n`;
+						responseText += `   🏷️ Device Label: ${labelInfo.deviceLabel || "N/A"}\n`;
+						responseText += `   ✅ Default Label: ${labelInfo.isDefault ? "Yes" : "No"}\n`;
+						responseText += `   👁️ Visible: ${labelInfo.isHide ? "Hidden" : "Visible"}\n`;
+						if (labelInfo.labelColor) {
+							responseText += `   🎨 Label Color: ${labelInfo.labelColor}\n`;
+						}
+						if (labelInfo.productLabelColor) {
+							responseText += `   🎨 Product Label Color: ${labelInfo.productLabelColor}\n`;
+						}
+						responseText += `\n`;
+
+						// Properties for this label
+						responseText += `   📊 **Properties (${properties.length} properties)**:\n`;
+						if (properties.length === 0) {
+							responseText += `   ❌ No properties found for this label\n\n`;
+						} else {
+							properties.forEach((prop: any, propIndex: number) => {
+								responseText += `\n   ${propIndex + 1}. **${prop.name || "Unnamed Property"}** (\`${prop.code || "N/A"}\`)\n`;
+								responseText += `      🆔 ID: ${prop.id || "N/A"}\n`;
+								responseText += `      📊 Data Type: ${prop.dataType || "N/A"}\n`;
+								responseText += `      🔧 Type: ${prop.type || "N/A"}\n`;
+								responseText += `      📝 Sub Type: ${prop.subType || "N/A"} `;
+								
+								// Sub type explanation
+								const subTypeMap: Record<string, string> = {
+									"R": "(Read-only)",
+									"W": "(Write-only)", 
+									"RW": "(Read/Write)"
+								};
+								const subTypeDesc = subTypeMap[prop.subType] || "";
+								responseText += `${subTypeDesc}\n`;
+								
+								if (prop.desc) {
+									responseText += `      📖 Description: ${prop.desc}\n`;
+								}
+
+								// Current values
+								if (prop.upValue !== null && prop.upValue !== undefined) {
+									responseText += `      📈 Current Value: ${prop.upValue}\n`;
+								}
+								if (prop.downValue !== null && prop.downValue !== undefined) {
+									responseText += `      📉 Down Value: ${prop.downValue}\n`;
+								}
+
+								// Control and display settings
+								responseText += `      👁️ Display: ${prop.display ? "Yes" : "No"}\n`;
+								responseText += `      🎛️ Control Enabled: ${prop.enableControl ? "Yes" : "No"}\n`;
+								responseText += `      📡 Report Enabled: ${prop.enableReport ? "Yes" : "No"}\n`;
+
+								if (prop.unit) {
+									responseText += `      📏 Unit: ${prop.unit}\n`;
+								}
+								responseText += `      📊 Sort Order: ${prop.sortNum || "N/A"}\n`;
+
+								// Specifications
+								if (prop.specs && Array.isArray(prop.specs) && prop.specs.length > 0) {
+									responseText += `      📐 **Specifications** (${prop.specs.length} spec(s)):\n`;
+									prop.specs.forEach((spec: any, specIndex: number) => {
+										if (spec.name || spec.code) {
+											responseText += `        ${specIndex + 1}. ${spec.name || spec.code || "Unnamed Spec"}\n`;
+										}
+										if (spec.dataType) {
+											responseText += `           • Data Type: ${spec.dataType}\n`;
+										}
+										if (spec.min !== null && spec.min !== undefined) {
+											responseText += `           • Min: ${spec.min}\n`;
+										}
+										if (spec.max !== null && spec.max !== undefined) {
+											responseText += `           • Max: ${spec.max}\n`;
+										}
+										if (spec.step !== null && spec.step !== undefined) {
+											responseText += `           • Step: ${spec.step}\n`;
+										}
+										if (spec.unit) {
+											responseText += `           • Unit: ${spec.unit}\n`;
+										}
+										if (spec.value !== null && spec.value !== undefined) {
+											responseText += `           • Value: ${spec.value}\n`;
+										}
+										if (spec.upValue !== null && spec.upValue !== undefined) {
+											responseText += `           • Up Value: ${spec.upValue}\n`;
+										}
+										
+										// Handle nested specs (like RGB color components)
+										if (spec.specs && Array.isArray(spec.specs) && spec.specs.length > 0) {
+											responseText += `           • Sub-specs (${spec.specs.length} items):\n`;
+											spec.specs.forEach((subSpec: any, subIndex: number) => {
+												if (subSpec.min !== null && subSpec.max !== null) {
+													responseText += `             ${subIndex + 1}. Range: ${subSpec.min}-${subSpec.max}\n`;
+												}
+												if (subSpec.unit) {
+													responseText += `             ${subIndex + 1}. Unit: ${subSpec.unit}\n`;
+												}
+											});
+										}
+									});
+								}
+
+								// Additional metadata
+								if (prop.icon) {
+									responseText += `      🎨 Icon: ${prop.icon}\n`;
+								}
+								if (prop.labelId) {
+									responseText += `      🏷️ Label ID: ${prop.labelId}\n`;
+								}
+								if (prop.typeMapping) {
+									responseText += `      🔗 Type Mapping: ${prop.typeMapping}\n`;
+								}
+							});
+						}
+						responseText += `\n`;
+					});
+
+					// Summary
+					const totalProperties = propertiesData.reduce((sum: number, group: any) => sum + (group.value?.length || 0), 0);
+					responseText += `📊 **Summary**: Retrieved ${totalProperties} properties across ${propertiesData.length} label group(s) for device \`${deviceId}\`\n`;
+					
+					// Filter summary
+					const filters = [];
+					if (showHide !== undefined) filters.push(`showHide: ${showHide}`);
+					if (filterDisplay !== undefined) filters.push(`filterDisplay: ${filterDisplay}`);
+					if (propCode) filters.push(`propCode: ${propCode}`);
+					if (propName) filters.push(`propName: ${propName}`);
+					if (tslSubType) filters.push(`tslSubType: ${tslSubType}`);
+					if (displayControl !== undefined) filters.push(`displayControl: ${displayControl}`);
+					if (enableControl !== undefined) filters.push(`enableControl: ${enableControl}`);
+					
+					if (filters.length > 0) {
+						responseText += `🔍 **Applied Filters**: ${filters.join(", ")}\n`;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_device_properties error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting device properties: ${errorMessage}`,
 							},
 						],
 					};
