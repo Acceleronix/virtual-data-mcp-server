@@ -797,15 +797,7 @@ export class VirtualDataMCP extends McpAgent {
 			"get_device_location",
 			"Get device location information including GPS coordinates, address, and positioning details",
 			{
-				type: "object",
-				properties: {
-					deviceId: {
-						type: "number",
-						description: "Device ID to get location information for (required, e.g., 9644)",
-					},
-				},
-				required: ["deviceId"],
-				additionalProperties: false,
+				deviceId: z.number().describe("Device ID to get location information for (required, e.g., 9644)")
 			},
 			async ({ deviceId }) => {
 				console.log("🔥 get_device_location function ENTRY - parameters:", { deviceId });
