@@ -1010,23 +1010,20 @@ export class EUOneAPIUtils {
 			queryParams.append("deviceId", String(options.deviceId));
 			console.log("✅ Added deviceId (int32):", options.deviceId);
 			
-			// eventType: string (optional) - only add if provided
-			if (options.eventType) {
-				queryParams.append("eventType", options.eventType);
-				console.log("✅ Added eventType (string):", options.eventType);
-			}
+			// eventType: string - always provide with default "WARN" since it's required by API
+			const eventType = options.eventType || "WARN";
+			queryParams.append("eventType", eventType);
+			console.log("✅ Added eventType (string):", eventType, options.eventType ? "(user provided)" : "(default)");
 			
-			// pageNum: integer <int32> (optional, default: 1) - only add if provided
-			if (options.pageNum !== undefined) {
-				queryParams.append("pageNum", String(options.pageNum));
-				console.log("✅ Added pageNum (int32):", options.pageNum);
-			}
+			// pageNum: integer <int32> - always provide with default 1
+			const pageNum = options.pageNum !== undefined ? options.pageNum : 1;
+			queryParams.append("pageNum", String(pageNum));
+			console.log("✅ Added pageNum (int32):", pageNum, options.pageNum !== undefined ? "(user provided)" : "(default)");
 			
-			// pageSize: integer <int32> (optional, default: 10) - only add if provided  
-			if (options.pageSize !== undefined) {
-				queryParams.append("pageSize", String(options.pageSize));
-				console.log("✅ Added pageSize (int32):", options.pageSize);
-			}
+			// pageSize: integer <int32> - always provide with default 10
+			const pageSize = options.pageSize !== undefined ? options.pageSize : 10;
+			queryParams.append("pageSize", String(pageSize));
+			console.log("✅ Added pageSize (int32):", pageSize, options.pageSize !== undefined ? "(user provided)" : "(default)");
 
 			// Additional optional parameters - only add if provided
 			if (options.startTime !== undefined) {
