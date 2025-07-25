@@ -59,6 +59,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addDeviceLocationTool(env);
 		console.log("✅ Device location tool registered");
 
+		// Set device location tool
+		this.addSetDeviceLocationTool(env);
+		console.log("✅ Set device location tool registered");
+
 		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
@@ -961,6 +965,154 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error getting device location: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addSetDeviceLocationTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"set_device_location",
+			"Set/update device location information with coordinates, address, and positioning details",
+			{
+				deviceId: z.number().describe("Device ID to set location for (required, e.g., 10997)"),
+				coordinate: z.string().describe("GPS coordinates in format 'longitude,latitude' (required, e.g., '2.6749045410156214,44.8198351640713')"),
+				locateMode: z.string().optional().describe("Location mode: 'REPORTING' (device reported) or 'MANUAL' (manually set) (optional, default: 'MANUAL')"),
+				coordinateSystem: z.string().optional().describe("Coordinate system: 'WGS84', 'GCJ02', 'BD09' (optional, default: 'WGS84')"),
+				address: z.string().optional().describe("Address description (optional, e.g., '6 Ldt Conilhergues, 12600 Brommat, France')"),
+				detailAddress: z.string().optional().describe("Detailed address description (optional)"),
+				localPhoto: z.string().optional().describe("Local photo URL or base64 string (optional)"),
+				mountId: z.number().optional().describe("Mount point ID for installation location (optional)"),
+				locateType: z.number().optional().describe("Location type: 0=GNSS, 1=LBS, 2=Manual, 3=WiFi (optional)"),
+				adCode: z.string().optional().describe("Administrative area code (optional)"),
+				ggaStatus: z.number().optional().describe("GGA status for GPS quality (0-9, optional)"),
+				height: z.number().optional().describe("Altitude in meters (optional)"),
+				speed: z.number().optional().describe("Ground speed in knots (optional)")
+			},
+			async ({ deviceId, coordinate, locateMode, coordinateSystem, address, detailAddress, localPhoto, mountId, locateType, adCode, ggaStatus, height, speed }) => {
+				console.log("🔥 set_device_location function ENTRY - parameters:", { 
+					deviceId, coordinate, locateMode, coordinateSystem, address, detailAddress, 
+					localPhoto, mountId, locateType, adCode, ggaStatus, height, speed 
+				});
+				
+				try {
+					console.log("🚀 set_device_location called with parameters:", { 
+						deviceId, coordinate, locateMode, coordinateSystem, address 
+					});
+
+					// Parameter validation
+					if (!deviceId || typeof deviceId !== "number") {
+						throw new Error("deviceId is required and must be a number");
+					}
+
+					if (!coordinate || typeof coordinate !== "string" || coordinate.trim() === "") {
+						throw new Error("coordinate is required and must be a non-empty string in format 'longitude,latitude'");
+					}
+
+					// Validate coordinate format (should be "longitude,latitude")
+					const coordParts = coordinate.trim().split(",");
+					if (coordParts.length !== 2) {
+						throw new Error("coordinate must be in format 'longitude,latitude' (e.g., '2.6749045410156214,44.8198351640713')");
+					}
+
+					const [lng, lat] = coordParts;
+					if (isNaN(Number(lng)) || isNaN(Number(lat))) {
+						throw new Error("coordinate values must be valid numbers");
+					}
+
+					console.log("✅ Using validated parameters:", { 
+						deviceId, 
+						coordinate: coordinate.trim(),
+						locateMode: locateMode || "MANUAL",
+						coordinateSystem: coordinateSystem || "WGS84"
+					});
+
+					// Call the API using the new setDeviceLocation method
+					const locationResult = await EUOneAPIUtils.setDeviceLocation(env, {
+						deviceId,
+						coordinate: coordinate.trim(),
+						locateMode,
+						coordinateSystem,
+						address,
+						detailAddress,
+						localPhoto,
+						mountId,
+						locateType,
+						adCode,
+						ggaStatus,
+						height,
+						speed
+					});
+
+					console.log("✅ Device location set successfully");
+
+					// Format the response
+					let responseText = `📍 **Device Location Updated Successfully**\n`;
+					responseText += `Device ID: \`${deviceId}\`\n`;
+					responseText += `Coordinates: \`${coordinate.trim()}\`\n`;
+					responseText += `Location Mode: \`${locateMode || "MANUAL"}\`\n`;
+					responseText += `Coordinate System: \`${coordinateSystem || "WGS84"}\`\n`;
+					responseText += `============================================================\n\n`;
+
+					// Show what was set
+					responseText += `✅ **Location Information Set:**\n`;
+					if (address) {
+						responseText += `   🏠 Address: ${address}\n`;
+					}
+					if (detailAddress) {
+						responseText += `   🏠 Detail Address: ${detailAddress}\n`;
+					}
+					if (mountId !== undefined && mountId !== null) {
+						responseText += `   🏔️ Mount ID: ${mountId}\n`;
+					}
+					if (locateType !== undefined) {
+						const locateTypeStr = ["GNSS", "LBS", "Manual", "WiFi"][locateType] || "Unknown";
+						responseText += `   📡 Location Type: ${locateType} (${locateTypeStr})\n`;
+					}
+					if (height !== undefined) {
+						responseText += `   📏 Height: ${height}m\n`;
+					}
+					if (speed !== undefined) {
+						responseText += `   🏃 Speed: ${speed} knots\n`;
+					}
+					if (ggaStatus !== undefined) {
+						responseText += `   🛰️ GGA Status: ${ggaStatus}\n`;
+					}
+					if (adCode) {
+						responseText += `   🗺️ Administrative Code: ${adCode}\n`;
+					}
+					if (localPhoto !== undefined) {
+						responseText += `   📸 Local Photo: ${localPhoto ? "Provided" : "None"}\n`;
+					}
+
+					responseText += `\n📊 **Summary**: Successfully updated location for device \`${deviceId}\`\n`;
+					responseText += `📍 New coordinates: ${coordinate.trim()} (${coordinateSystem || "WGS84"})\n`;
+					responseText += `💡 Use \`get_device_location\` with deviceId: ${deviceId} to verify the updated location\n`;
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ set_device_location error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error setting device location: ${errorMessage}`,
 							},
 						],
 					};

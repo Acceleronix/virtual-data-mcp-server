@@ -728,4 +728,82 @@ export class EUOneAPIUtils {
 		});
 	}
 
+	static async setDeviceLocation(
+		env: EUOneEnvironment,
+		options: {
+			deviceId: number;
+			coordinate: string;
+			locateMode?: string;
+			coordinateSystem?: string;
+			address?: string;
+			detailAddress?: string;
+			localPhoto?: string;
+			mountId?: number;
+			locateType?: number;
+			adCode?: string;
+			ggaStatus?: number;
+			height?: number;
+			speed?: number;
+		},
+	): Promise<any> {
+		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
+			console.log("🔐 Using token for set device location (length):", token.length);
+
+			// Build request body with required and optional parameters
+			const requestBody = {
+				deviceId: options.deviceId,
+				coordinate: options.coordinate,
+				// Optional parameters with defaults
+				locateMode: options.locateMode || "MANUAL",
+				coordinateSystem: options.coordinateSystem || "WGS84",
+				...(options.address && { address: options.address }),
+				...(options.detailAddress && { detailAddress: options.detailAddress }),
+				...(options.localPhoto !== undefined && { localPhoto: options.localPhoto }),
+				...(options.mountId !== undefined && { mountId: options.mountId }),
+				...(options.locateType !== undefined && { locateType: options.locateType }),
+				...(options.adCode && { adCode: options.adCode }),
+				...(options.ggaStatus !== undefined && { ggaStatus: options.ggaStatus }),
+				...(options.height !== undefined && { height: options.height }),
+				...(options.speed !== undefined && { speed: options.speed }),
+			};
+
+			console.log("📝 Set device location request body:", JSON.stringify(requestBody, null, 2));
+
+			const url = `${env.BASE_URL}/v2/device/detail/locationSave`;
+			console.log("📝 Set device location request URL:", url);
+
+			const response = await fetch(url, {
+				method: "POST",
+				headers: {
+					Authorization: token, // Direct token, no "Bearer " prefix
+					"Accept-Language": "en-US",
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(requestBody),
+			});
+
+			console.log("📡 Set device location response status:", response.status);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error("❌ Set device location HTTP error response:", errorText);
+				throw new Error(`API call failed: HTTP ${response.status} - ${errorText}`);
+			}
+
+			const result = (await response.json()) as any;
+			console.log("📍 Set device location API response:", JSON.stringify(result, null, 2));
+
+			if (result.code !== 200) {
+				console.error("❌ Set device location API returned error code:", {
+					code: result.code,
+					msg: result.msg,
+					fullResponse: result
+				});
+				throw new Error(`API call failed: Code ${result.code} - ${result.msg || "Unknown error"}`);
+			}
+
+			return result;
+		});
+	}
+
 }
