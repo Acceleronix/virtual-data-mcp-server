@@ -1887,20 +1887,18 @@ export class VirtualDataMCP extends McpAgent {
 				eventType: z.enum(["WARN", "ERROR"]).optional().describe("Event type filter (optional): WARN=warning events, ERROR=error events"),
 				pageNum: z.number().optional().describe("Page number starting from 1 (optional, default: 1)"),
 				pageSize: z.number().optional().describe("Number of events per page, max 100 (optional, default: 10)"),
-				analysis: z.boolean().optional().describe("Whether to parse/analyze event data (optional)"),
-				endTime: z.number().optional().describe("End time filter as timestamp in milliseconds (optional)"),
-				eventName: z.string().optional().describe("Filter by specific event name (optional)"),
-				handleStatus: z.union([z.literal(0), z.literal(1)]).optional().describe("Handle status filter (optional): 0=unhandled, 1=handled"),
-				startTime: z.number().optional().describe("Start time filter as timestamp in milliseconds (optional)")
+				startTime: z.number().optional().describe("Start time filter as timestamp in milliseconds (optional, e.g., 1753191166347)"),
+				endTime: z.number().optional().describe("End time filter as timestamp in milliseconds (optional, e.g., 1753191266347)"),
+				handleStatus: z.union([z.literal(0), z.literal(1)]).optional().describe("Handle status filter (optional): 0=unhandled, 1=handled")
 			},
-			async ({ deviceId, eventType, pageNum, pageSize, analysis, endTime, eventName, handleStatus, startTime }) => {
+			async ({ deviceId, eventType, pageNum, pageSize, startTime, endTime, handleStatus }) => {
 				console.log("🔥 get_device_events function ENTRY - parameters:", { 
-					deviceId, eventType, pageNum, pageSize, analysis, endTime, eventName, handleStatus, startTime 
+					deviceId, eventType, pageNum, pageSize, startTime, endTime, handleStatus 
 				});
 				
 				try {
 					console.log("🚀 get_device_events called with parameters:", { 
-						deviceId, eventType, pageNum, pageSize, eventName, handleStatus 
+						deviceId, eventType, pageNum, pageSize, startTime, endTime, handleStatus 
 					});
 
 					// Parameter validation
@@ -1913,24 +1911,20 @@ export class VirtualDataMCP extends McpAgent {
 						eventType, 
 						pageNum,
 						pageSize,
-						analysis,
+						startTime,
 						endTime,
-						eventName, 
-						handleStatus,
-						startTime
+						handleStatus
 					});
 
-					// Call the API using the new getDeviceEvents method
+					// Call the API using the updated getDeviceEvents method
 					const eventsResult = await EUOneAPIUtils.getDeviceEvents(env, {
 						deviceId,
 						eventType,
 						pageNum,
 						pageSize,
-						analysis,
+						startTime,
 						endTime,
-						eventName,
-						handleStatus,
-						startTime
+						handleStatus
 					});
 
 					console.log("✅ Device events data retrieved successfully");
@@ -2089,11 +2083,11 @@ export class VirtualDataMCP extends McpAgent {
 					// Filter summary
 					const filters = [];
 					if (eventType) filters.push(`eventType: ${eventType}`);
-					if (eventName) filters.push(`eventName: ${eventName}`);
 					if (handleStatus !== undefined) filters.push(`handleStatus: ${handleStatus === 0 ? "unhandled" : "handled"}`);
 					if (startTime) filters.push(`startTime: ${new Date(startTime).toISOString()}`);
 					if (endTime) filters.push(`endTime: ${new Date(endTime).toISOString()}`);
-					if (analysis !== undefined) filters.push(`analysis: ${analysis}`);
+					if (pageNum && pageNum !== 1) filters.push(`pageNum: ${pageNum}`);
+					if (pageSize && pageSize !== 10) filters.push(`pageSize: ${pageSize}`);
 					
 					if (filters.length > 0) {
 						responseText += `🔍 **Applied Filters**: ${filters.join(", ")}\n`;

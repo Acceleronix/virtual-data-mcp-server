@@ -994,48 +994,39 @@ export class EUOneAPIUtils {
 			eventType?: "WARN" | "ERROR";
 			pageNum?: number;
 			pageSize?: number;
-			analysis?: boolean;
-			endTime?: number;
-			eventName?: string;
-			handleStatus?: 0 | 1;
 			startTime?: number;
-		},
+			endTime?: number;
+			handleStatus?: 0 | 1;
+		} = {} as any,
 	): Promise<any> {
 		return EUOneAPIUtils.safeAPICallWithTokenRefresh(env, async (token) => {
 			console.log("🔐 Using token for device events (length):", token.length);
 
-			// Build query parameters 
+			// Build query parameters - only core parameters, following get_product_list pattern
 			const queryParams = new URLSearchParams();
 			queryParams.append("deviceId", String(options.deviceId));
 			
-			// Add optional parameters with defaults
+			// Add optional parameters only if they have values
 			if (options.eventType) {
 				queryParams.append("eventType", options.eventType);
 			}
-			if (options.pageNum !== undefined) {
-				queryParams.append("pageNum", String(options.pageNum));
-			} else {
-				queryParams.append("pageNum", "1"); // Default page number
-			}
-			if (options.pageSize !== undefined) {
-				queryParams.append("pageSize", String(options.pageSize));
-			} else {
-				queryParams.append("pageSize", "10"); // Default page size
-			}
-			if (options.analysis !== undefined) {
-				queryParams.append("analysis", String(options.analysis));
+			
+			// Set pagination parameters with defaults (like get_product_list)
+			const pageNum = options.pageNum ? String(options.pageNum) : "1";
+			const pageSize = options.pageSize ? String(options.pageSize) : "10";
+			
+			queryParams.append("pageNum", pageNum);
+			queryParams.append("pageSize", pageSize);
+
+			// Add additional optional parameters only if they have values
+			if (options.startTime !== undefined) {
+				queryParams.append("startTime", String(options.startTime));
 			}
 			if (options.endTime !== undefined) {
 				queryParams.append("endTime", String(options.endTime));
 			}
-			if (options.eventName) {
-				queryParams.append("eventName", options.eventName);
-			}
 			if (options.handleStatus !== undefined) {
 				queryParams.append("handleStatus", String(options.handleStatus));
-			}
-			if (options.startTime !== undefined) {
-				queryParams.append("startTime", String(options.startTime));
 			}
 
 			const url = `${env.BASE_URL}/v2/device/event/log?${queryParams.toString()}`;
