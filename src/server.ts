@@ -63,6 +63,10 @@ export class VirtualDataMCP extends McpAgent {
 		this.addSetDeviceLocationTool(env);
 		console.log("✅ Set device location tool registered");
 
+		// Device details tool
+		this.addDeviceDetailsTool(env);
+		console.log("✅ Device details tool registered");
+
 		console.log("📋 MCP tools registered successfully");
 
 		// Auto-login on server initialization with improved error handling
@@ -1113,6 +1117,309 @@ export class VirtualDataMCP extends McpAgent {
 							{
 								type: "text",
 								text: `❌ Error setting device location: ${errorMessage}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+
+	private addDeviceDetailsTool(env: EUOneEnvironment) {
+		this.server.tool(
+			"get_device_details",
+			"Get comprehensive device information including basic details, status, configuration, and extended attributes",
+			{
+				deviceId: z.number().describe("Device ID to get detailed information for (required, e.g., 10997)")
+			},
+			async ({ deviceId }) => {
+				console.log("🔥 get_device_details function ENTRY - parameters:", { deviceId });
+				
+				try {
+					console.log("🚀 get_device_details called with parameters:", { deviceId });
+
+					// Parameter validation
+					if (!deviceId || typeof deviceId !== "number") {
+						throw new Error("deviceId is required and must be a number");
+					}
+
+					console.log("✅ Using validated parameters:", { deviceId });
+
+					// Call the API using the new getDeviceDetails method
+					const detailsResult = await EUOneAPIUtils.getDeviceDetails(env, {
+						deviceId
+					});
+
+					console.log("✅ Device details data retrieved successfully");
+
+					// Format the response
+					const deviceData = detailsResult.data;
+					
+					if (!deviceData) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `❌ No device details found for device ID: ${deviceId}`,
+								},
+							],
+						};
+					}
+					
+					let responseText = `📱 **Device Details Information**\n`;
+					responseText += `Device ID: \`${deviceData.deviceId || deviceId}\`\n`;
+					responseText += `Device Name: \`${deviceData.deviceName || "N/A"}\`\n`;
+					responseText += `Device Key: \`${deviceData.deviceKey || "N/A"}\`\n`;
+					responseText += `============================================================\n\n`;
+
+					// Basic Information
+					responseText += `📋 **Basic Information**\n`;
+					responseText += `   📦 Product Name: ${deviceData.productName || "N/A"}\n`;
+					responseText += `   🆔 Product ID: ${deviceData.productId || "N/A"}\n`;
+					responseText += `   🔑 Product Key: \`${deviceData.productKey || "N/A"}\`\n`;
+					responseText += `   🏭 Vendor: ${deviceData.vendorName || "N/A"}\n`;
+					responseText += `   🏢 Organization: ${deviceData.orgName || "N/A"} (ID: ${deviceData.orgId || "N/A"})\n`;
+					if (deviceData.deviceSn) {
+						responseText += `   📟 Serial Number: ${deviceData.deviceSn}\n`;
+					}
+					responseText += `\n`;
+
+					// Device Status
+					responseText += `📊 **Device Status**\n`;
+					const onlineStatus = deviceData.onlineStatus === 1 ? "🟢 Online" : "🔴 Offline";
+					responseText += `   📶 Online Status: ${onlineStatus}\n`;
+					
+					const runningStatusMap = {
+						1: "🟢 Normal",
+						2: "🟡 Alarm", 
+						3: "🔴 Fault",
+						4: "🔴 Fault + Alarm"
+					};
+					const runningStatus = runningStatusMap[deviceData.runningStatus] || `❓ Unknown (${deviceData.runningStatus})`;
+					responseText += `   ⚡ Running Status: ${runningStatus}\n`;
+
+					const activationStatus = deviceData.activationStatus === 1 ? "✅ Activated" : 
+											 deviceData.activationStatus === 0 ? "❌ Not Activated" : "❓ Unknown";
+					if (deviceData.activationStatus !== null) {
+						responseText += `   🎯 Activation Status: ${activationStatus}\n`;
+					}
+
+					if (deviceData.tsLastOnlineTime) {
+						const lastOnlineTime = new Date(deviceData.tsLastOnlineTime);
+						responseText += `   ⏰ Last Online: ${lastOnlineTime.toISOString()}\n`;
+					}
+					
+					if (deviceData.tsActivationTime) {
+						const activationTime = new Date(deviceData.tsActivationTime);
+						responseText += `   🎯 Activation Time: ${activationTime.toISOString()}\n`;
+					}
+
+					if (deviceData.dataUpdateTs) {
+						const dataUpdateTime = new Date(deviceData.dataUpdateTs);
+						responseText += `   📊 Data Update Time: ${dataUpdateTime.toISOString()}\n`;
+					}
+					responseText += `\n`;
+
+					// Device Type and Configuration
+					responseText += `🔧 **Device Configuration**\n`;
+					const accessTypeMap = {
+						0: "📱 Direct Device",
+						1: "🌐 Gateway Device", 
+						2: "📡 Gateway Sub-device"
+					};
+					const accessType = accessTypeMap[deviceData.accessType] || `❓ Unknown (${deviceData.accessType})`;
+					responseText += `   🔌 Access Type: ${accessType}\n`;
+
+					const netWayMap = {
+						1: "📶 WiFi",
+						2: "📡 Cellular",
+						3: "📻 NB-IoT",
+						4: "🔗 Other"
+					};
+					const netWay = netWayMap[deviceData.netWay] || `❓ Unknown (${deviceData.netWay})`;
+					responseText += `   🌐 Network Type: ${netWay}\n`;
+
+					if (deviceData.modelSpec) {
+						responseText += `   🔧 Model Spec: ${deviceData.modelSpec}\n`;
+					}
+
+					const dataFormatMap = {
+						1: "🔤 Text",
+						2: "📊 JSON",
+						3: "🔢 Binary"
+					};
+					const dataFormat = dataFormatMap[deviceData.dataFormat] || `❓ Unknown (${deviceData.dataFormat})`;
+					responseText += `   📝 Data Format: ${dataFormat}\n`;
+					responseText += `\n`;
+
+					// Category and Item Information
+					if (deviceData.categoryName || deviceData.itemCode || deviceData.itemValue) {
+						responseText += `📂 **Category Information**\n`;
+						if (deviceData.categoryName) {
+							responseText += `   📁 Category: ${deviceData.categoryName}\n`;
+						}
+						if (deviceData.itemCode) {
+							responseText += `   🔖 Item Code: ${deviceData.itemCode}\n`;
+						}
+						if (deviceData.itemValue) {
+							responseText += `   🏷️ Item Value: ${deviceData.itemValue}\n`;
+						}
+						responseText += `\n`;
+					}
+
+					// Network Signal Information
+					const hasNetworkInfo = deviceData.signalStrength !== null || deviceData.rsrp !== null || 
+										   deviceData.rsrq !== null || deviceData.iccid || deviceData.soc !== null;
+					if (hasNetworkInfo) {
+						responseText += `📡 **Network & Signal Information**\n`;
+						if (deviceData.signalStrength !== null) {
+							responseText += `   📶 Signal Strength: ${deviceData.signalStrength}\n`;
+						}
+						if (deviceData.rsrp !== null) {
+							responseText += `   📊 RSRP: ${deviceData.rsrp}\n`;
+						}
+						if (deviceData.rsrq !== null) {
+							responseText += `   📈 RSRQ: ${deviceData.rsrq}\n`;
+						}
+						if (deviceData.iccid) {
+							responseText += `   📞 ICCID: ${deviceData.iccid}\n`;
+						}
+						if (deviceData.iccids) {
+							responseText += `   📞 ICCIDs: ${deviceData.iccids}\n`;
+						}
+						if (deviceData.soc !== null) {
+							responseText += `   🔋 Battery SOC: ${deviceData.soc}%\n`;
+						}
+						responseText += `\n`;
+					}
+
+					// Alarms and Events
+					const hasAlarms = deviceData.alarmCode || deviceData.faultCode || deviceData.baseEventInfo;
+					if (hasAlarms) {
+						responseText += `⚠️ **Alarms & Events**\n`;
+						if (deviceData.alarmCode) {
+							responseText += `   🚨 Alarm Code: ${deviceData.alarmCode}\n`;
+						}
+						if (deviceData.faultCode) {
+							responseText += `   ⚡ Fault Code: ${deviceData.faultCode}\n`;
+						}
+						if (deviceData.baseEventInfo && typeof deviceData.baseEventInfo === 'object') {
+							responseText += `   📋 Event Info:\n`;
+							Object.entries(deviceData.baseEventInfo).forEach(([key, value]) => {
+								responseText += `     • ${key}: ${value}\n`;
+							});
+						}
+						responseText += `\n`;
+					}
+
+					// Mount Information
+					if (deviceData.mountId || deviceData.mountName) {
+						responseText += `🏔️ **Mount Information**\n`;
+						if (deviceData.mountId) {
+							responseText += `   🆔 Mount ID: ${deviceData.mountId}\n`;
+						}
+						if (deviceData.mountName) {
+							responseText += `   📛 Mount Name: ${deviceData.mountName}\n`;
+						}
+						responseText += `\n`;
+					}
+
+					// Extended Fields
+					if (deviceData.extFiledList && Array.isArray(deviceData.extFiledList) && deviceData.extFiledList.length > 0) {
+						responseText += `📋 **Extended Fields** (${deviceData.extFiledList.length} fields)\n`;
+						deviceData.extFiledList.forEach((field: any, index: number) => {
+							responseText += `   ${index + 1}. **${field.filedName || "Unnamed Field"}**\n`;
+							responseText += `      • Code: \`${field.filedCode || "N/A"}\`\n`;
+							responseText += `      • Value: ${field.filedValue || "N/A"}\n`;
+							if (field.dataType) {
+								const dataTypeMap = {1: "Text", 2: "Date", 3: "Enum"};
+								responseText += `      • Type: ${dataTypeMap[field.dataType] || "Unknown"}\n`;
+							}
+							responseText += `      • Required: ${field.isRequired === 1 ? "Yes" : "No"}\n`;
+						});
+						responseText += `\n`;
+					}
+
+					// Usage Status Information
+					if (deviceData.useStatusInfo) {
+						const useInfo = deviceData.useStatusInfo;
+						responseText += `📈 **Usage Status Information**\n`;
+						if (useInfo.useStatus) {
+							responseText += `   📊 Use Status: ${useInfo.useStatus}\n`;
+						}
+						responseText += `   🔄 Enable Flag: ${useInfo.enableFlag === 1 ? "Enabled" : "Disabled"}\n`;
+						if (useInfo.trialTimeStart) {
+							responseText += `   ⏰ Trial Start: ${new Date(useInfo.trialTimeStart).toISOString()}\n`;
+						}
+						if (useInfo.trialTimeEnd) {
+							responseText += `   ⏰ Trial End: ${new Date(useInfo.trialTimeEnd).toISOString()}\n`;
+						}
+						if (useInfo.expiredTime) {
+							responseText += `   ⌛ Expired Time: ${new Date(useInfo.expiredTime).toISOString()}\n`;
+						}
+						if (useInfo.onlineDurationMs) {
+							const hours = Math.floor(useInfo.onlineDurationMs / (1000 * 60 * 60));
+							responseText += `   ⏱️ Online Duration: ${hours} hours\n`;
+						}
+						responseText += `\n`;
+					}
+
+					// Additional Information
+					const additionalInfo = [];
+					if (deviceData.renewalStatus) {
+						additionalInfo.push(`Renewal Status: ${deviceData.renewalStatus}`);
+					}
+					if (deviceData.checkResult !== null) {
+						const checkResultMap = {
+							1: "Normal",
+							"-1": "Device not synced to SaaS",
+							"-2": "BindingCode validation failed"
+						};
+						additionalInfo.push(`Check Result: ${checkResultMap[deviceData.checkResult] || deviceData.checkResult}`);
+					}
+					if (deviceData.isAiProduct !== undefined) {
+						additionalInfo.push(`AI Product: ${deviceData.isAiProduct ? "Yes" : "No"}`);
+					}
+					if (deviceData.qrCodeType) {
+						additionalInfo.push(`QR Code Type: ${deviceData.qrCodeType}`);
+					}
+					if (deviceData.rtkAccounts) {
+						additionalInfo.push(`RTK Accounts: ${deviceData.rtkAccounts}`);
+					}
+
+					if (additionalInfo.length > 0) {
+						responseText += `ℹ️ **Additional Information**\n`;
+						additionalInfo.forEach(info => {
+							responseText += `   • ${info}\n`;
+						});
+						responseText += `\n`;
+					}
+
+					responseText += `📊 **Summary**: Successfully retrieved comprehensive details for device \`${deviceData.deviceName || deviceId}\`\n`;
+					responseText += `🏭 Product: ${deviceData.productName || "N/A"} (${deviceData.productKey || "N/A"})\n`;
+					responseText += `📶 Status: ${onlineStatus} | ${runningStatus}\n`;
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: responseText,
+							},
+						],
+					};
+				} catch (error) {
+					console.error("❌ get_device_details error:", error);
+
+					let errorMessage = "Unknown error occurred";
+					if (error instanceof Error) {
+						errorMessage = error.message;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error getting device details: ${errorMessage}`,
 							},
 						],
 					};
